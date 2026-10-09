@@ -2,22 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { --jarvis-cyan: #22d3ee; --jarvis-purple: #a855f7; }
+:root {
+  --jarvis-cyan: #22d3ee;
+  --jarvis-purple: #a855f7;
+}
+
 html, body, #root { height: 100%; }
+
 body {
   background: radial-gradient(circle at 50% 0%, #0b1220 0%, #020617 60%);
   color: #e2e8f0;
   font-family: "Inter", system-ui, sans-serif;
   margin: 0;
+  position: relative;
+  overflow-x: hidden;
 }
-.font-orbitron { font-family: "Orbitron", sans-serif; letter-spacing: 0.15em; }
+
+/* Grid HUD animado no fundo */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+  animation: gridMove 20s linear infinite;
+}
+
+@keyframes gridMove {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+/* Scanline sutil */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    transparent 0%,
+    rgba(34, 211, 238, 0.03) 50%,
+    transparent 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 1;
+  animation: scan 8s linear infinite;
+}
+
+@keyframes scan {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100vh; }
+}
+
+.font-orbitron {
+  font-family: "Orbitron", sans-serif;
+  letter-spacing: 0.15em;
+}
+
 .hud-corner { position: relative; }
-.hud-corner::before, .hud-corner::after {
-  content: ""; position: absolute; width: 14px; height: 14px;
+
+.hud-corner::before,
+.hud-corner::after {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
   border: 2px solid var(--jarvis-cyan);
 }
+
 .hud-corner::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
 .hud-corner::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+
+/* Scrollbar tech */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #0f172a; }
-::-webkit-scrollbar-thumb { background: linear-gradient(#22d3ee, #a855f7); border-radius: 4px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(#22d3ee, #a855f7);
+  border-radius: 4px;
+}
+
+/* Animação do typewriter */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typewriter-cursor::after {
+  content: "▊";
+  color: var(--jarvis-cyan);
+  animation: blink 0.8s infinite;
+  margin-left: 2px;
+}
+
+/* Mensagens com entrada suave */
+@keyframes messageIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-in {
+  animation: messageIn 0.4s ease-out;
+}
