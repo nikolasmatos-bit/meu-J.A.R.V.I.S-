@@ -79,15 +79,49 @@ export function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="p-4 border-b border-cyan-400/20 flex justify-between items-center">
-        <button onClick={() => navigate({ to: "/" })} className="font-orbitron text-cyan-300 tracking-widest hover:text-cyan-100">← J.A.R.V.I.S.</button>
-        <span className="text-xs text-slate-500">{user.email}</span>
+    <div className="min-h-screen text-slate-100 flex flex-col relative boot-in">
+      <div className="scanline" />
+
+      {/* Top bar HUD */}
+      <header className="relative z-10 p-4 border-b border-red-500/20 backdrop-blur-sm bg-slate-950/40">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <button
+            onClick={() => navigate({ to: "/" })}
+            className="font-orbitron text-red-400 tracking-widest hover:text-amber-300 transition flex items-center gap-2"
+          >
+            <span className="text-amber-400">◄</span>
+            J.A.R.V.I.S.
+          </button>
+
+          <div className="flex items-center gap-4 text-[10px] tracking-widest text-slate-500">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              ONLINE
+            </span>
+            <span className="hidden md:inline">OPERADOR: {user.email}</span>
+            <span className="hidden md:inline">THREAD: {threadId.slice(0, 8)}</span>
+          </div>
+        </div>
       </header>
-      <div className="py-6"><ArcReactor state={state} /></div>
-      <main className="flex-1 overflow-y-auto pb-4"><Conversation messages={messages} /></main>
-      <footer className="p-4 border-t border-cyan-400/20">
-        <PromptInput onSend={send} listening={listening} onToggleMic={toggleListening} disabled={state === "thinking"} />
+
+      {/* Reactor */}
+      <div className="py-8 relative z-10">
+        <ArcReactor state={state} />
+      </div>
+
+      {/* Mensagens */}
+      <main className="flex-1 overflow-y-auto pb-4 relative z-10">
+        <Conversation messages={messages} />
+      </main>
+
+      {/* Input */}
+      <footer className="p-4 border-t border-red-500/20 backdrop-blur-sm bg-slate-950/40 relative z-10">
+        <PromptInput
+          onSend={send}
+          listening={listening}
+          onToggleMic={toggleListening}
+          disabled={state === "thinking"}
+        />
       </footer>
     </div>
   );
