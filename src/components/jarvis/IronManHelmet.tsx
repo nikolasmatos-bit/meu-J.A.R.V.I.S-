@@ -1,20 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform, useAnimationFrame } from "framer-motion";
 import { SFX } from "../../lib/sfx";
 
 type State = "idle" | "thinking" | "speaking";
 
 export function IronManHelmet({ state }: { state: State }) {
   const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [blink, setBlink] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Mouse tracking
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springX = useSpring(mouseX, { stiffness: 80, damping: 20 });
   const springY = useSpring(mouseY, { stiffness: 80, damping: 20 });
 
-  const rotateY = useTransform(springX, [-1, 1], [-12, 12]);
+  // Rotação automática (contínua, gira suave sozinho)
+  const autoRotateY = useMotionValue(0);
+  useAnimationFrame((t) => {
+    if (!hovered) {
+      autoRotateY.set(Math.sin(t / 2000) * 8);
+    }
+  });
+
+  // Combina rotação automática + mouse
+  const rotateY = useTransform([springX, autoRotateY], ([mx, ar]: number[]) => mx * 12 + ar);
   const rotateX = useTransform(springY, [-1, 1], [8, -8]);
+
+  // Float vertical
+  const floatY = useMotionValue(0);
+  useAnimationFrame((t) => {
+    floatY.set(Math.sin(t / 1500) * 8);
+  });
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -31,6 +49,15 @@ export function IronManHelmet({ state }: { state: State }) {
     return () => window.removeEventListener("mousemove", handle);
   }, [mouseX, mouseY]);
 
+  // Pisca os olhos ocasionalmente
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBlink(true);
+      setTimeout(() => setBlink(false), 150);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, []);
+
   const eyeGlow = state === "thinking" ? "#f59e0b" : "#22d3ee";
   const pulseSpeed = state === "idle" ? 3 : state === "thinking" ? 0.8 : 1.2;
 
@@ -42,44 +69,150 @@ export function IronManHelmet({ state }: { state: State }) {
   return (
     <div
       ref={containerRef}
-      className="relative w-72 h-80 mx-auto cursor-pointer select-none"
-      style={{ perspective: 1000 }}
+      className="relative w-80 h-96 mx-auto cursor-pointer select-none"
+      style={{ perspective: 1200 }}
       onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       title={open ? "Fechar capacete" : "Abrir capacete"}
     >
-      {/* Glow de fundo */}
+      {/* Glow de fundo MUITO MAIOR */}
       <motion.div
-        className="absolute inset-0 rounded-full blur-3xl"
+        className="absolute -inset-8 rounded-full blur-3xl"
         style={{
-          background: `radial-gradient(circle, ${eyeGlow}50, transparent 70%)`,
+          background: `radial-gradient(circle, ${eyeGlow}60, transparent 70%)`,
         }}
-        animate={{ opacity: [0.3, 0.8, 0.3], scale: [1, 1.08, 1] }}
+        animate={{
+          opacity: [0.3, 0.9, 0.3],
+          scale: [1, 1.15, 1],
+        }}
         transition={{ duration: pulseSpeed, repeat: Infinity }}
       />
 
-      {/* Capacete real com parallax 3D */}
-      <motion.img
-        src="/helmet.png"
-        alt="Iron Man Helmet"
-        className="absolute inset-0 w-full h-full object-contain"
-        draggable={false}
+      {/* Ondas de energia expandindo */}
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={`wave-${i}`}
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{ border: `2px solid ${eyeGlow}` }}
+          animate={{
+            scale: [1, 2],
+            opacity: [0.5, 0],
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            delay: i * 1,
+            ease: "easeOut",
+          }}
+        />
+      ))}
+
+      {/* Partículas orbitando (8) */}
+      {Array.from({ length: 8 }).map((_, i) => {
+        const angle = (i * 360) / 8;
+        const radius = 120 + (i % 3) * 20;
+        const duration = 6 + (i % 4) * 2;
+        return (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full pointer-events-none"
+            style={{
+              background: i % 2 === 0 ? "#22d3ee" : "#f59e0b",
+              boxShadow: `0 0 10px ${i % 2 === 0 ? "#22d3ee" : "#f59e0b"}`,
+            }}
+            animate={{
+              x: [
+                Math.cos((angle * Math.PI) / 180) * radius,
+                Math.cos(((angle + 120) * Math.PI) / 180) * radius,
+                Math.cos(((angle + 240) * Math.PI) / 180) * radius,
+                Math.cos((angle * Math.PI) / 180) * radius,
+              ],
+              y: [
+                Math.sin((angle * Math.PI) / 180) * radius,
+                Math.sin(((angle + 120) * Math.PI) / 180) * radius,
+                Math.sin(((angle + 240) * Math.PI) / 180) * radius,
+                Math.sin((angle * Math.PI) / 180) * radius,
+              ],
+              opacity: [0.4, 1, 0.4],
+            }}
+            transition={{
+              duration,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          />
+        );
+      })}
+
+      {/* Capacete flutuando e girando */}
+      <motion.div
+        className="absolute inset-0"
         style={{
           rotateY,
           rotateX,
           transformStyle: "preserve-3d",
-          filter: open
-            ? "brightness(1.15) saturate(1.2) drop-shadow(0 0 30px rgba(34,211,238,0.7))"
-            : "brightness(1) saturate(1) drop-shadow(0 0 15px rgba(239,68,68,0.5))",
-          transition: "filter 0.5s",
+          y: floatY,
         }}
-        animate={{
-          y: open ? -10 : 0,
-          scale: open ? 1.05 : 1,
-        }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      />
+      >
+        {/* Imagem do capacete */}
+        <motion.img
+          src="/helmet.png"
+          alt="Iron Man Helmet"
+          className="absolute inset-0 w-full h-full object-contain"
+          draggable={false}
+          initial={{ opacity: 0, scale: 0.7, rotateZ: -10 }}
+          animate={{
+            opacity: 1,
+            scale: hovered ? 1.08 : 1,
+            rotateZ: 0,
+          }}
+          transition={{
+            duration: 0.8,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+          style={{
+            filter: open
+              ? "brightness(1.2) saturate(1.3) drop-shadow(0 0 40px rgba(34,211,238,0.8))"
+              : hovered
+              ? "brightness(1.1) saturate(1.15) drop-shadow(0 0 25px rgba(34,211,238,0.6))"
+              : "brightness(1) saturate(1) drop-shadow(0 0 15px rgba(239,68,68,0.5))",
+            transition: "filter 0.5s",
+          }}
+        />
 
-      {/* Aura pulsante */}
+        {/* Scanline passando por cima */}
+        <motion.div
+          className="absolute inset-x-0 h-8 pointer-events-none"
+          style={{
+            background: `linear-gradient(180deg, transparent, ${eyeGlow}80, transparent)`,
+            mixBlendMode: "screen",
+          }}
+          animate={{
+            top: ["-10%", "110%"],
+          }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+            ease: "linear",
+            repeatDelay: 1.5,
+          }}
+        />
+
+        {/* Overlay de "piscada" dos olhos (simula blink) */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          animate={{
+            opacity: blink ? 0.9 : 0,
+          }}
+          transition={{ duration: 0.1 }}
+          style={{
+            background: `radial-gradient(ellipse 40% 8% at 50% 42%, ${eyeGlow}, transparent 70%)`,
+          }}
+        />
+      </motion.div>
+
+      {/* Aura pulsante extra */}
       <motion.div
         className="absolute inset-0 rounded-full pointer-events-none"
         style={{ border: `2px solid ${eyeGlow}`, opacity: 0.3 }}
@@ -88,11 +221,15 @@ export function IronManHelmet({ state }: { state: State }) {
       />
 
       {/* Texto inferior */}
-      <div className="absolute -bottom-2 left-0 right-0 text-center">
+      <motion.div
+        className="absolute -bottom-2 left-0 right-0 text-center"
+        animate={{ opacity: [0.5, 1, 0.5] }}
+        transition={{ duration: 2, repeat: Infinity }}
+      >
         <div className="font-orbitron text-[10px] tracking-[0.3em] text-cyan-400/70">
           {open ? "▸ CLIQUE PARA FECHAR" : "▸ CLIQUE PARA ABRIR"}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
