@@ -57,7 +57,7 @@ export default async function handler(req: Request) {
         Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
       },
       body: JSON.stringify({
-       model: "", 
+        model: "openai/gpt-oss-120b",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
         temperature: 0.85,
         max_tokens: 4096,
