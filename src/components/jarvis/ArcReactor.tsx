@@ -3,137 +3,167 @@ import { motion } from "framer-motion";
 type State = "idle" | "thinking" | "speaking";
 
 export function ArcReactor({ state }: { state: State }) {
-  const pulse = state === "thinking" ? 1.15 : state === "speaking" ? 1.08 : 1.0;
-  const rotate = state === "thinking" ? 8 : 2;
-  const ringColor = state === "speaking" ? "#fbbf24" : "#22d3ee";
+  const isActive = state !== "idle";
+  const ringColor = state === "speaking" ? "#fbbf24" : state === "thinking" ? "#22d3ee" : "#ef4444";
+  const pulseSpeed = state === "idle" ? 3 : state === "thinking" ? 0.8 : 1.2;
 
   return (
-    <div className="relative w-72 h-72 mx-auto">
-      {/* Glow externo enorme */}
+    <div className="relative w-80 h-80 mx-auto">
+      {/* Glow externo massivo */}
       <motion.div
-        className="absolute -inset-8 rounded-full blur-3xl"
-        style={{ background: `radial-gradient(circle, ${ringColor}30 0%, transparent 70%)` }}
-        animate={{ opacity: [0.3, 0.8, 0.3], scale: [1, pulse * 1.05, 1] }}
-        transition={{ duration: state === "idle" ? 3 : 1.2, repeat: Infinity }}
+        className="absolute -inset-16 rounded-full blur-3xl"
+        style={{ background: `radial-gradient(circle, ${ringColor}40 0%, transparent 60%)` }}
+        animate={{ opacity: [0.3, 0.7, 0.3], scale: [1, 1.1, 1] }}
+        transition={{ duration: pulseSpeed, repeat: Infinity }}
       />
 
-      {/* Anel 1 — externo sólido */}
-      <motion.div
-        className="absolute inset-0 rounded-full border-2"
-        style={{ borderColor: `${ringColor}88` }}
-        animate={{ scale: [1, pulse, 1], opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: state === "idle" ? 3 : 1.2, repeat: Infinity }}
-      />
+      {/* Ondas de energia */}
+      {isActive && [0, 1, 2].map((i) => (
+        <motion.div
+          key={`wave-${i}`}
+          className="absolute inset-0 rounded-full border"
+          style={{ borderColor: `${ringColor}60` }}
+          animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, delay: i * 0.8 }}
+        />
+      ))}
 
-      {/* Anel 2 — tracejado girando horário */}
-      <motion.div
-        className="absolute inset-3 rounded-full border-2 border-dashed"
-        style={{ borderColor: `${ringColor}aa` }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 20 / rotate, repeat: Infinity, ease: "linear" }}
-      />
+      {/* SVG com anéis elaborados */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 320">
+        {/* Anel externo com gaps */}
+        <motion.circle
+          cx="160" cy="160" r="150"
+          fill="none"
+          stroke={ringColor}
+          strokeWidth="2"
+          strokeDasharray="40 10 15 10"
+          opacity="0.7"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          style={{ transformOrigin: "160px 160px" }}
+        />
 
-      {/* Anel 3 — segmentado girando anti-horário */}
+        {/* Segundo anel tracejado */}
+        <motion.circle
+          cx="160" cy="160" r="135"
+          fill="none"
+          stroke={ringColor}
+          strokeWidth="1"
+          strokeDasharray="2 6"
+          opacity="0.5"
+          animate={{ rotate: -360 }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          style={{ transformOrigin: "160px 160px" }}
+        />
+
+        {/* Arcos de segmentos (maradores) */}
+        {Array.from({ length: 24 }).map((_, i) => {
+          const angle = (i * 360) / 24;
+          const rad = (angle * Math.PI) / 180;
+          const x1 = 160 + Math.cos(rad) * 118;
+          const y1 = 160 + Math.sin(rad) * 118;
+          const x2 = 160 + Math.cos(rad) * 126;
+          const y2 = 160 + Math.sin(rad) * 126;
+          return (
+            <line
+              key={i}
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={ringColor}
+              strokeWidth={i % 6 === 0 ? 2 : 1}
+              opacity={i % 6 === 0 ? 0.9 : 0.3}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Anel girando horário */}
       <motion.div
-        className="absolute inset-7 rounded-full border-2"
+        className="absolute inset-4 rounded-full border-2"
         style={{
           borderColor: "transparent",
           borderTopColor: ringColor,
-          borderRightColor: `${ringColor}44`,
+          borderRightColor: `${ringColor}40`,
+          filter: `drop-shadow(0 0 6px ${ringColor})`,
         }}
-        animate={{ rotate: -360 }}
-        transition={{ duration: 12 / rotate, repeat: Infinity, ease: "linear" }}
-      />
-
-      {/* Anel 4 — tracejado médio */}
-      <motion.div
-        className="absolute inset-11 rounded-full border border-dashed"
-        style={{ borderColor: `#fbbf2488` }}
         animate={{ rotate: 360 }}
-        transition={{ duration: 30 / rotate, repeat: Infinity, ease: "linear" }}
+        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
       />
 
-      {/* Anel 5 — arco interno */}
+      {/* Anel girando anti-horário */}
       <motion.div
-        className="absolute inset-14 rounded-full border-2"
+        className="absolute inset-8 rounded-full border-2"
         style={{
           borderColor: "transparent",
-          borderBottomColor: ringColor,
-          borderLeftColor: `${ringColor}66`,
+          borderBottomColor: "#fbbf24",
+          borderLeftColor: "rgba(251, 191, 36, 0.3)",
+          filter: "drop-shadow(0 0 6px #fbbf24)",
         }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 8 / rotate, repeat: Infinity, ease: "linear" }}
+        animate={{ rotate: -360 }}
+        transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
       />
 
-      {/* Glow interno */}
+      {/* Núcleo */}
       <motion.div
-        className="absolute inset-16 rounded-full blur-xl"
-        style={{
-          background: `radial-gradient(circle, ${ringColor}66 0%, transparent 70%)`,
+        className="absolute inset-20 rounded-full border-2 flex items-center justify-center bg-slate-950"
+        style={{ borderColor: `${ringColor}88` }}
+        animate={{
+          boxShadow: [
+            `0 0 20px ${ringColor}44`,
+            `0 0 40px ${ringColor}88`,
+            `0 0 20px ${ringColor}44`,
+          ],
         }}
-        animate={{ opacity: [0.4, 1, 0.4] }}
-        transition={{ duration: state === "speaking" ? 0.5 : 1.8, repeat: Infinity }}
-      />
-
-      {/* Núcleo com texto */}
-      <div className="absolute inset-20 rounded-full bg-slate-950 border-2 flex items-center justify-center"
-        style={{ borderColor: `${ringColor}66` }}>
+        transition={{ duration: pulseSpeed, repeat: Infinity }}
+      >
         <div className="text-center">
-          <div className="font-orbitron text-[10px] tracking-widest" style={{ color: ringColor }}>
+          <div className="font-orbitron text-[11px] tracking-widest" style={{ color: ringColor }}>
             {state === "idle" ? "STANDBY" : state === "thinking" ? "PROCESSING" : "SPEAKING"}
           </div>
-          <div className="text-[7px] text-slate-500 mt-1 tracking-widest">
-            v2.0
+          <div className="text-[8px] text-slate-500 mt-1 font-mono">
+            SYS v2.0.4
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Partículas orbitando (8 no total) */}
-      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-        <motion.div
-          key={i}
-          className="absolute inset-0"
-          animate={{ rotate: 360 }}
-          transition={{
-            duration: 6 + i * 1.5,
-            repeat: Infinity,
-            ease: "linear",
-            delay: i * 0.3,
-          }}
-        >
-          <div
-            className="absolute w-1 h-1 rounded-full"
+      {/* Partículas orbitando — 12 no total */}
+      {Array.from({ length: 12 }).map((_, i) => {
+        const radius = 100 + (i % 4) * 12;
+        const duration = 5 + (i % 5) * 1.5;
+        const size = i % 3 === 0 ? "w-1.5 h-1.5" : "w-1 h-1";
+        const color = i % 3 === 0 ? "#fbbf24" : ringColor;
+        return (
+          <motion.div
+            key={i}
+            className="absolute"
             style={{
-              top: i % 2 === 0 ? "0%" : "100%",
+              top: "50%",
               left: "50%",
-              transform: "translateX(-50%)",
-              background: i % 3 === 0 ? "#fbbf24" : ringColor,
-              boxShadow: `0 0 6px ${i % 3 === 0 ? "#fbbf24" : ringColor}`,
+              marginTop: -2,
+              marginLeft: -2,
             }}
-          />
-        </motion.div>
-      ))}
-
-      {/* Cantos HUD ao redor */}
-      {[
-        { top: "-20px", left: "-20px", borderRight: 0, borderBottom: 0 },
-        { top: "-20px", right: "-20px", borderLeft: 0, borderBottom: 0 },
-        { bottom: "-20px", left: "-20px", borderRight: 0, borderTop: 0 },
-        { bottom: "-20px", right: "-20px", borderLeft: 0, borderTop: 0 },
-      ].map((pos, i) => (
-        <div
-          key={i}
-          className="absolute w-4 h-4"
-          style={{
-            ...pos,
-            border: `2px solid ${ringColor}`,
-            borderRightWidth: pos.borderRight !== undefined ? 0 : 2,
-            borderBottomWidth: pos.borderBottom !== undefined ? 0 : 2,
-            borderLeftWidth: pos.borderLeft !== undefined ? 0 : 2,
-            borderTopWidth: pos.borderTop !== undefined ? 0 : 2,
-          } as any}
-        />
-      ))}
+            animate={{
+              x: [
+                Math.cos(0) * radius,
+                Math.cos((Math.PI * 2) / 3) * radius,
+                Math.cos((Math.PI * 4) / 3) * radius,
+                Math.cos(0) * radius,
+              ],
+              y: [
+                Math.sin(0) * radius,
+                Math.sin((Math.PI * 2) / 3) * radius,
+                Math.sin((Math.PI * 4) / 3) * radius,
+                Math.sin(0) * radius,
+              ],
+            }}
+            transition={{ duration, repeat: Infinity, ease: "linear" }}
+          >
+            <div
+              className={`${size} rounded-full`}
+              style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+            />
+          </motion.div>
+        );
+      })}
     </div>
   );
 }

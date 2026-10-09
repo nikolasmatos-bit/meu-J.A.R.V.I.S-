@@ -1,82 +1,109 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ============================================
+   ULTRA HUD ELEMENTS
+   ============================================ */
 
-:root {
-  --jarvis-red: #ef4444;
-  --jarvis-gold: #fbbf24;
-  --jarvis-cyan: #22d3ee;
-  --jarvis-purple: #a855f7;
-}
-
-html, body, #root { height: 100%; }
-
-body {
-  background: radial-gradient(ellipse at 50% 0%, #1a0a0a 0%, #020617 70%);
-  color: #e2e8f0;
-  font-family: "Inter", system-ui, sans-serif;
-  margin: 0;
-  position: relative;
-  overflow-x: hidden;
-}
-
-/* Grid HUD animado */
+/* Grid de fundo duplo — vermelho + dourado */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(239, 68, 68, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(251, 191, 36, 0.05) 1px, transparent 1px);
-  background-size: 50px 50px;
+    linear-gradient(rgba(239, 68, 68, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(251, 191, 36, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
-  animation: gridMove 25s linear infinite;
+  animation: gridDrift 30s linear infinite;
 }
 
-@keyframes gridMove {
-  0% { background-position: 0 0; }
-  100% { background-position: 50px 50px; }
+@keyframes gridDrift {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 60px 60px, -60px 60px; }
 }
 
-/* Vinheta nas bordas */
+/* Vinheta radial cinematográfica */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+  background:
+    radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.75) 100%),
+    linear-gradient(transparent 0%, rgba(239, 68, 68, 0.02) 50%, transparent 100%);
   pointer-events: none;
   z-index: 1;
 }
 
-.font-orbitron {
-  font-family: "Orbitron", sans-serif;
-  letter-spacing: 0.15em;
+/* Scanline cinematográfica */
+.scanline {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ef4444, #fbbf24, #ef4444, transparent);
+  opacity: 0.35;
+  animation: scanlineMove 8s linear infinite;
+  pointer-events: none;
+  z-index: 50;
+  filter: blur(0.5px);
 }
 
-/* Cantos HUD clássicos */
-.hud-corner { position: relative; }
+@keyframes scanlineMove {
+  0% { top: -5px; }
+  100% { top: 100vh; }
+}
 
-.hud-corner::before,
-.hud-corner::after {
+/* Cantos HUD duplos */
+.hud-frame {
+  position: relative;
+}
+
+.hud-frame::before,
+.hud-frame::after {
   content: "";
   position: absolute;
-  width: 14px; height: 14px;
-  border: 2px solid var(--jarvis-red);
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
 }
 
-.hud-corner::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
-.hud-corner::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
-
-/* Scrollbar Stark */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #0f0a0a; }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(#ef4444, #fbbf24);
-  border-radius: 4px;
+.hud-frame::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 4px;
 }
 
-/* Cursor de digitação */
+.hud-frame::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 4px;
+}
+
+/* Glow pulsante no texto */
+.glow-text {
+  text-shadow:
+    0 0 10px currentColor,
+    0 0 20px currentColor;
+}
+
+/* Flicker de monitor CRT */
+@keyframes crt-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.97; }
+  52% { opacity: 1; }
+  60% { opacity: 0.94; }
+  62% { opacity: 1; }
+}
+
+.crt {
+  animation: crt-flicker 4s infinite;
+}
+
+/* Typewriter cursor */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -84,53 +111,69 @@ body::after {
 
 .typewriter-cursor::after {
   content: "▊";
-  color: var(--jarvis-gold);
-  animation: blink 0.8s infinite;
-  margin-left: 2px;
+  color: #fbbf24;
+  animation: blink 0.7s infinite;
+  margin-left: 3px;
+  text-shadow: 0 0 8px #fbbf24;
 }
 
-/* Entrada de mensagem */
-@keyframes messageIn {
+/* Mensagem entrando */
+@keyframes messageSlide {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: translateY(16px) scale(0.97);
+    filter: blur(4px);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 
 .message-in {
-  animation: messageIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: messageSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Pulso de boot */
-@keyframes bootPulse {
-  0% { opacity: 0; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1); }
-  100% { opacity: 1; transform: scale(1); }
+/* Código HUD piscando */
+@keyframes codePulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
 }
 
-.boot-in {
-  animation: bootPulse 0.8s ease-out;
+.code-pulse {
+  animation: codePulse 2s ease-in-out infinite;
 }
 
-/* Linha varrendo no topo */
-@keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+/* Radar */
+@keyframes radarSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.scanline {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--jarvis-gold), transparent);
-  opacity: 0.4;
-  animation: scanline 6s linear infinite;
-  pointer-events: none;
-  z-index: 10;
+.radar-sweep {
+  animation: radarSweep 3s linear infinite;
+  transform-origin: center;
+}
+
+/* Barra de boot */
+@keyframes bootBar {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+/* Fade in geral */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.8s ease-out;
 }
