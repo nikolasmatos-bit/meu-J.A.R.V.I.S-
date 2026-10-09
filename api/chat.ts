@@ -50,16 +50,14 @@ export default async function handler(req: Request) {
       ...modulators,
     ].join("\n\n");
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
-        "HTTP-Referer": "https://meu-j-a-r-v-i-s-m1yo.vercel.app",
-        "X-Title": "JARVIS",
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.1-8b-instruct:free",
+        model: "llama-3.3-70b-versatile",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
         temperature: 0.85,
         max_tokens: 4096,
