@@ -1,6 +1,7 @@
 export type ChatPayload = {
   messages: { role: "user" | "assistant"; content: string }[];
   settings: { tone: string; length: string; volume: number };
+  facts?: string[];
 };
 
 export async function chatFn(payload: ChatPayload): Promise<{ content: string }> {
@@ -9,6 +10,9 @@ export async function chatFn(payload: ChatPayload): Promise<{ content: string }>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
   return res.json();
 }
