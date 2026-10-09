@@ -24,6 +24,7 @@ export const SFX = {
     osc.start();
     osc.stop(c.currentTime + 0.05);
   },
+
   reactorEngage() {
     const c = getCtx();
     const osc = c.createOscillator();
@@ -40,6 +41,7 @@ export const SFX = {
     osc.start();
     osc.stop(c.currentTime + 0.6);
   },
+
   responseDone() {
     const c = getCtx();
     [523.25, 659.25].forEach((freq, i) => {
@@ -53,6 +55,7 @@ export const SFX = {
       osc.stop(c.currentTime + i * 0.08 + 0.5);
     });
   },
+
   error() {
     const c = getCtx();
     const osc = c.createOscillator();
@@ -62,6 +65,23 @@ export const SFX = {
     osc.frequency.setValueAtTime(120, c.currentTime + 0.15);
     envelope(gain, c.currentTime, 0.005, 0.35, 0.08);
     osc.connect(gain).connect(c.destination);
+    osc.start();
+    osc.stop(c.currentTime + 0.4);
+  },
+
+  servoMove() {
+    const c = getCtx();
+    const osc = c.createOscillator();
+    const filter = c.createBiquadFilter();
+    const gain = c.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(180, c.currentTime);
+    osc.frequency.linearRampToValueAtTime(90, c.currentTime + 0.3);
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(400, c.currentTime);
+    filter.Q.setValueAtTime(6, c.currentTime);
+    envelope(gain, c.currentTime, 0.02, 0.35, 0.06);
+    osc.connect(filter).connect(gain).connect(c.destination);
     osc.start();
     osc.stop(c.currentTime + 0.4);
   },
