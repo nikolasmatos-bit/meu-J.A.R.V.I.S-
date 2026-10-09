@@ -4,9 +4,6 @@ import { SFX } from "../../lib/sfx";
 
 type State = "idle" | "thinking" | "speaking";
 
-const HELMET_URL =
-  "https://assets.stickpng.com/images/580b57fbd9996e24bc43c051.png";
-
 export function IronManHelmet({ state }: { state: State }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,7 +59,7 @@ export function IronManHelmet({ state }: { state: State }) {
 
       {/* Capacete real com parallax 3D */}
       <motion.img
-        src={HELMET_URL}
+        src="/helmet.png"
         alt="Iron Man Helmet"
         className="absolute inset-0 w-full h-full object-contain"
         draggable={false}
