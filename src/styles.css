@@ -1,88 +1,255 @@
-@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   VARIÁVEIS
+   ============================================ */
 :root {
   --jarvis-red: #ef4444;
   --jarvis-gold: #fbbf24;
   --jarvis-cyan: #22d3ee;
+  --jarvis-purple: #a855f7;
+  --jarvis-bg: #020617;
 }
 
 html, body, #root { height: 100%; }
 
+/* ============================================
+   FUNDO — GRADIENTE ANIMADO + GRID PERSPECTIVA
+   ============================================ */
 body {
-  background: radial-gradient(ellipse at 50% 0%, #0b1220 0%, #020617 70%);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(239, 68, 68, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(34, 211, 238, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, #0b1220 0%, #020617 70%);
   color: #e2e8f0;
   font-family: "Inter", system-ui, sans-serif;
   margin: 0;
   overflow-x: hidden;
+  min-height: 100vh;
+  position: relative;
 }
 
-/* Grid HUD animado */
+/* Grid HUD em perspectiva (tipo chão de nave) */
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60vh;
   background-image:
-    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(rgba(34, 211, 238, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.15) 1px, transparent 1px);
+  background-size: 60px 60px;
+  transform: perspective(400px) rotateX(60deg);
+  transform-origin: bottom;
   pointer-events: none;
   z-index: 0;
-  animation: gridMove 20s linear infinite;
+  mask-image: linear-gradient(to top, black 30%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, black 30%, transparent 100%);
+  animation: gridPerspective 8s linear infinite;
+  opacity: 0.7;
 }
 
-@keyframes gridMove {
+@keyframes gridPerspective {
   0% { background-position: 0 0; }
-  100% { background-position: 40px 40px; }
+  100% { background-position: 0 60px; }
 }
 
+/* Vinheta cinematográfica */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================
+   SCANLINE ANIMADA (linha de varredura)
+   ============================================ */
+.scanline {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--jarvis-cyan),
+    var(--jarvis-gold),
+    var(--jarvis-cyan),
+    transparent
+  );
+  opacity: 0.6;
+  animation: scanlineMove 5s linear infinite;
+  pointer-events: none;
+  z-index: 100;
+  filter: blur(0.5px);
+  box-shadow: 0 0 20px var(--jarvis-cyan);
+}
+
+@keyframes scanlineMove {
+  0% { top: -5px; }
+  100% { top: 100vh; }
+}
+
+/* Ruído de TV (film grain) */
+.noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 2;
+  animation: noiseShift 0.5s steps(3) infinite;
+}
+
+@keyframes noiseShift {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-2px, 1px); }
+  66% { transform: translate(1px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ============================================
+   FONTES
+   ============================================ */
 .font-orbitron {
   font-family: "Orbitron", sans-serif;
   letter-spacing: 0.15em;
 }
 
-.hud-corner { position: relative; }
+.font-mono-tech {
+  font-family: "Share Tech Mono", "Courier New", monospace;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================
+   CANTOS HUD DUPLOS (dois tamanhos)
+   ============================================ */
+.hud-corner {
+  position: relative;
+}
+
 .hud-corner::before,
 .hud-corner::after {
   content: "";
   position: absolute;
-  width: 14px; height: 14px;
+  width: 16px;
+  height: 16px;
   border: 2px solid var(--jarvis-cyan);
+  box-shadow: 0 0 8px var(--jarvis-cyan);
 }
-.hud-corner::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
-.hud-corner::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #0f172a; }
+.hud-corner::before {
+  top: -2px;
+  left: -2px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.hud-corner::after {
+  bottom: -2px;
+  right: -2px;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* Cantos maiores externos */
+.hud-frame {
+  position: relative;
+}
+
+.hud-frame::before,
+.hud-frame::after {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(251, 191, 36, 0.6);
+}
+
+.hud-frame::before {
+  top: -6px;
+  left: -6px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.hud-frame::after {
+  bottom: -6px;
+  right: -6px;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* ============================================
+   GLOW / TEXT EFFECTS
+   ============================================ */
+.glow-text {
+  text-shadow:
+    0 0 4px currentColor,
+    0 0 12px currentColor,
+    0 0 24px currentColor;
+}
+
+.glow-soft {
+  text-shadow:
+    0 0 6px currentColor,
+    0 0 12px rgba(255, 255, 255, 0.1);
+}
+
+/* Texto com gradiente */
+.text-gradient {
+  background: linear-gradient(135deg, var(--jarvis-red) 0%, var(--jarvis-gold) 50%, var(--jarvis-cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  background-size: 200% 200%;
+  animation: gradientShift 4s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ============================================
+   SCROLLBAR STARK
+   ============================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 5px;
+}
+
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(#22d3ee, #a855f7);
-  border-radius: 4px;
+  background: linear-gradient(180deg, var(--jarvis-red), var(--jarvis-gold));
+  border-radius: 5px;
+  border: 2px solid rgba(15, 23, 42, 0.5);
 }
 
-/* Scanline */
-.scanline {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #22d3ee, transparent);
-  opacity: 0.3;
-  animation: scanlineMove 6s linear infinite;
-  pointer-events: none;
-  z-index: 50;
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--jarvis-gold), var(--jarvis-red));
+  box-shadow: 0 0 12px var(--jarvis-gold);
 }
 
-@keyframes scanlineMove {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-
-/* Typewriter */
+/* ============================================
+   TYPEWRITER CURSOR
+   ============================================ */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -90,16 +257,164 @@ body::before {
 
 .typewriter-cursor::after {
   content: "▊";
-  color: var(--jarvis-cyan);
-  animation: blink 0.8s infinite;
-  margin-left: 2px;
+  color: var(--jarvis-gold);
+  animation: blink 0.7s infinite;
+  margin-left: 3px;
+  text-shadow: 0 0 8px var(--jarvis-gold);
 }
 
-/* Mensagem entrando */
-@keyframes messageIn {
+/* ============================================
+   MENSAGENS — ENTRADA CINEMATOGRÁFICA
+   ============================================ */
+@keyframes messageSlide {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(20px) scale(0.96);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.message-in {
+  animation: messageSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Efeito holográfico nas mensagens do JARVIS */
+.holo {
+  position: relative;
+  overflow: hidden;
+}
+
+.holo::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 211, 238, 0.15),
+    transparent
+  );
+  animation: holoShine 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes holoShine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+/* ============================================
+   PULSAÇÃO / BATIMENTO
+   ============================================ */
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  10% { transform: scale(1.05); opacity: 1; }
+  20% { transform: scale(1); opacity: 0.7; }
+  30% { transform: scale(1.03); opacity: 0.9; }
+  40% { transform: scale(1); opacity: 0.7; }
+}
+
+.heartbeat {
+  animation: heartbeat 2s ease-in-out infinite;
+}
+
+/* ============================================
+   CÓDIGO PISCANDO (tipo terminal)
+   ============================================ */
+@keyframes codePulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+.code-pulse {
+  animation: codePulse 2s ease-in-out infinite;
+}
+
+/* ============================================
+   RADAR
+   ============================================ */
+@keyframes radarSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.radar-sweep {
+  animation: radarSweep 3s linear infinite;
+  transform-origin: center;
+}
+
+/* ============================================
+   BOOT ANIMATION
+   ============================================ */
+@keyframes bootBar {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+@keyframes bootFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.boot-in {
+  animation: bootFadeIn 0.8s ease-out;
+}
+
+/* ============================================
+   FLICKER CRT
+   ============================================ */
+@keyframes crtFlicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.98; }
+  52% { opacity: 1; }
+  60% { opacity: 0.96; }
+  62% { opacity: 1; }
+}
+
+.crt {
+  animation: crtFlicker 5s infinite;
+}
+
+/* ============================================
+   ONDAS DE ENERGIA (para o reator)
+   ============================================ */
+@keyframes energyWave {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+    border-color: rgba(34, 211, 238, 0.8);
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+    border-color: rgba(34, 211, 238, 0);
+  }
+}
+
+.energy-wave {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--jarvis-cyan);
+  border-radius: 50%;
+  animation: energyWave 3s ease-out infinite;
+  pointer-events: none;
+}
+
+/* ============================================
+   FADE IN UP
+   ============================================ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
@@ -107,6 +422,37 @@ body::before {
   }
 }
 
-.message-in {
-  animation: messageIn 0.4s ease-out;
+.fade-in-up {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ============================================
+   INPUT FOCUS GLOW
+   ============================================ */
+input:focus {
+  outline: none;
+}
+
+/* ============================================
+   SELEÇÃO DE TEXTO STARK
+   ============================================ */
+::selection {
+  background: rgba(239, 68, 68, 0.4);
+  color: white;
+  text-shadow: 0 0 8px var(--jarvis-red);
+}
+
+/* ============================================
+   BOTÕES HOVER
+   ============================================ */
+button {
+  transition: all 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
 }
