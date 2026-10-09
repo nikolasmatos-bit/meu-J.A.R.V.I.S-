@@ -59,7 +59,7 @@ export default async function handler(req: Request) {
         "X-Title": "JARVIS",
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.3-70b-instruct:free",
+        model: "google/gemini-2.0-flash-exp:free",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
         temperature: 0.85,
         max_tokens: 4096,
