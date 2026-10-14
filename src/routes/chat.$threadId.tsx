@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useJarvis } from "../components/jarvis/Bootstrap";
 import { ArcReactor } from "../components/jarvis/ArcReactor";
@@ -21,12 +21,23 @@ export function ChatPage() {
   const [state, setState] = useState<"idle" | "thinking" | "speaking">("idle");
   const [listening, setListening] = useState(false);
   const [booted, setBooted] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setBooted(true), 1200);
+    const t = setTimeout(() => setBooted(true), 800);
     return () => clearTimeout(t);
   }, []);
+
+  // Cronômetro quando está pensando
+  useEffect(() => {
+    if (state !== "thinking") {
+      setElapsed(0);
+      return;
+    }
+    const t = setInterval(() => setElapsed((e) => e + 0.1), 100);
+    return () => clearInterval(t);
+  }, [state]);
 
   useEffect(() => {
     supabase
@@ -107,53 +118,70 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
-      {/* Boot overlay */}
-      {!booted && (
-        <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center">
-          <div className="text-center">
-            <div
-              className="font-orbitron text-cyan-400 text-3xl tracking-[0.5em] animate-pulse"
-              style={{ textShadow: "0 0 20px #22d3ee" }}
-            >
-              J.A.R.V.I.S.
-            </div>
-            <div className="text-[10px] text-cyan-400/60 tracking-[0.4em] mt-2">
-              INICIALIZANDO SISTEMAS
-            </div>
-            <div className="mt-6 w-80 h-1 bg-slate-900 overflow-hidden mx-auto rounded">
-              <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
-                style={{ animation: "bootBar 1.2s ease-out forwards" }}
-              />
-            </div>
-            <div className="text-[9px] text-slate-600 tracking-widest mt-3 font-mono">
-              CARREGANDO MÓDULOS NEURAIS...
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Aura central pulsante */}
+      <motion.div
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
+        style={{
+          width: "80vmin",
+          height: "80vmin",
+          background:
+            "radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 60%)",
+          filter: "blur(50px)",
+          zIndex: 0,
+        }}
+        animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.9, 0.4] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      />
 
-      {/* HUD lateral esquerdo */}
+      {/* Boot */}
+      <AnimatePresence>
+        {!booted && (
+          <motion.div
+            key="boot"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-950 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center"
+            >
+              <div
+                className="font-orbitron text-cyan-400 text-3xl tracking-[0.5em] animate-pulse"
+                style={{ textShadow: "0 0 30px #22d3ee" }}
+              >
+                J.A.R.V.I.S.
+              </div>
+              <div className="text-[10px] text-cyan-400/60 tracking-[0.4em] mt-2 font-mono">
+                ESTABELECENDO CONEXÃO NEURAL
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* HUD LATERAL */}
       {booted && (
         <>
-          <div className="absolute top-24 left-4 space-y-2 z-20 hidden md:block">
+          <div className="absolute top-28 left-6 space-y-3 z-20 hidden lg:block">
             <StatusBar label="CPU" color="#22d3ee" />
             <StatusBar label="MEM" color="#0ea5e9" />
             <StatusBar label="NET" color="#67e8f9" />
           </div>
 
-          <div className="absolute top-24 right-4 z-20 hidden md:block">
+          <div className="absolute top-28 right-6 z-20 hidden lg:block">
             <Radar />
           </div>
 
-          <div className="absolute bottom-28 left-4 text-[9px] font-mono text-cyan-400/40 space-y-0.5 z-20 hidden md:block code-pulse">
+          <div className="absolute bottom-36 left-6 text-[9px] font-mono text-cyan-400/40 space-y-0.5 z-20 hidden lg:block code-pulse">
             <div>▸ AUTH_OK</div>
             <div>▸ ENC_AES256</div>
             <div>▸ LINK:STABLE</div>
             <div>▸ PWR:98.4%</div>
           </div>
 
-          <div className="absolute bottom-28 right-4 text-[9px] font-mono text-cyan-400/40 text-right z-20 hidden md:block">
+          <div className="absolute bottom-36 right-6 text-[9px] font-mono text-cyan-400/40 text-right z-20 hidden lg:block">
             <div>LAT -23.5505</div>
             <div>LNG -46.6333</div>
             <div>SYS v2.0.4</div>
@@ -161,33 +189,81 @@ export function ChatPage() {
         </>
       )}
 
-      {/* Top bar */}
-      <header className="relative z-10 p-4 border-b border-cyan-500/20 backdrop-blur-sm bg-slate-950/60">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <button
+      {/* Header */}
+      <motion.header
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+        className="relative z-10 p-4 border-b border-cyan-500/20 backdrop-blur-xl bg-slate-950/40"
+      >
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <motion.button
+            whileHover={{ x: -4 }}
             onClick={() => navigate({ to: "/" })}
-            className="font-orbitron text-cyan-400 tracking-widest hover:text-cyan-200 transition flex items-center gap-2"
+            className="flex items-center gap-3 font-orbitron text-cyan-400 tracking-widest hover:text-cyan-200 transition"
             style={{ textShadow: "0 0 10px #22d3ee" }}
           >
-            <span className="text-cyan-300">◄</span>
-            J.A.R.V.I.S.
-          </button>
+            <span className="text-cyan-300 text-lg">◄</span>
+            <span>VOLTAR</span>
+          </motion.button>
 
           <div className="flex items-center gap-4 text-[10px] tracking-widest text-slate-500 font-mono">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              ONLINE
-            </span>
+            <motion.span
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="flex items-center gap-1.5"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
+              <span className="text-emerald-300">ONLINE</span>
+            </motion.span>
             <span className="hidden md:inline">OPERADOR: {user.email}</span>
-            <span className="hidden lg:inline">SYS: v2.0.4</span>
+            <span className="hidden lg:inline px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-400">
+              SYS v2.0.4
+            </span>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      {/* Reactor */}
-      <div className="py-10 relative z-10">
-        <ArcReactor state={state} />
-      </div>
+      {/* Reactor menor */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.7 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="py-6 relative z-10"
+      >
+        <div className="scale-75 origin-center">
+          <ArcReactor state={state} />
+        </div>
+      </motion.div>
+
+      {/* Indicador de status */}
+      <AnimatePresence mode="wait">
+        {state === "thinking" && (
+          <motion.div
+            key="thinking"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-center relative z-10 -mt-4 mb-2"
+          >
+            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30">
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                    className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"
+                  />
+                ))}
+              </div>
+              <span className="font-orbitron text-[10px] tracking-[0.3em] text-cyan-300">
+                PROCESSANDO {elapsed.toFixed(1)}s
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mensagens */}
       <main className="flex-1 overflow-y-auto pb-4 relative z-10">
@@ -195,14 +271,19 @@ export function ChatPage() {
       </main>
 
       {/* Input */}
-      <footer className="p-4 border-t border-cyan-500/20 backdrop-blur-sm bg-slate-950/60 relative z-10">
+      <motion.footer
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.7 }}
+        className="p-4 border-t border-cyan-500/20 backdrop-blur-xl bg-slate-950/40 relative z-10"
+      >
         <PromptInput
           onSend={send}
           listening={listening}
           onToggleMic={toggleListening}
           disabled={state === "thinking"}
         />
-      </footer>
+      </motion.footer>
     </div>
   );
 }
@@ -217,7 +298,10 @@ function StatusBar({ label, color }: { label: string; color: string }) {
   }, []);
   return (
     <div className="w-28">
-      <div className="flex justify-between text-[9px] font-mono tracking-widest" style={{ color }}>
+      <div
+        className="flex justify-between text-[9px] font-mono tracking-widest"
+        style={{ color }}
+      >
         <span>{label}</span>
         <span>{value.toFixed(0)}%</span>
       </div>
