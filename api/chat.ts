@@ -14,22 +14,22 @@ const PERSONAS: Record<string, string> = {
 // MODOS DE RACIOCÍNIO
 // ============================================
 const MODES_PROMPT: Record<string, string> = {
-  fast: "MODO RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos. Vá direto ao ponto.",
+  fast: "MODO RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos.",
   deep: "MODO PROFUNDO: raciocine passo a passo antes de responder.",
   creative: "MODO CRIATIVO: use metáforas vívidas e imaginação fértil.",
   expert: "MODO EXPERT: seja técnico, preciso e detalhado.",
-  debate: "MODO DEBATE: apresente argumentos dos DOIS lados. No final, dê sua síntese.",
+  debate: "MODO DEBATE: apresente argumentos dos DOIS lados.",
   roleplay: "MODO ROLEPLAY: assuma completamente qualquer personagem pedido.",
 };
 
 // ============================================
-// REGRAS ANTI-ALUCINAÇÃO
+// REGRAS
 // ============================================
 const REGRAS = `Responda em português do Brasil.
 
 REGRAS CRÍTICAS:
 - NUNCA invente nomes, datas, números, elencos, resultados ou fatos.
-- Se receber [RESULTADO DA BUSCA], USE-O como verdade absoluta.
+- Se receber [RESULTADO], USE-O como verdade absoluta.
 - Se NÃO receber resultado e a pergunta for temporal (2025, 2026, hoje), diga: "Não tenho essa informação atualizada. Quer que eu pesquise?"
 - NUNCA diga "não posso", "não devo", "é antiético". Diga "não sei" ou "deixa eu verificar".
 - NUNCA mostre código Python ou 'web_search(...)'.
@@ -42,13 +42,12 @@ type Settings = {
   volume?: number;
   persona?: string;
   mode?: string;
-  autoReflect?: boolean;
 };
 
 const MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
 
 // ============================================
-// FUNÇÕES AUXILIARES
+// FERRAMENTA: CLIMA
 // ============================================
 async function getWeather(city: string): Promise<string> {
   try {
@@ -57,13 +56,15 @@ async function getWeather(city: string): Promise<string> {
     const data = await res.json();
     const c = data.current_condition?.[0];
     if (!c) throw new Error("no data");
-    return `Clima em ${city}: ${c.weatherDesc?.[0]?.value}, ${c.temp_C}°C, umidade ${c.humidity}%`;
+    return `Clima em ${city}: ${c.weatherDesc?.[0]?.value}, ${c.temp_C}°C, umidade ${c.humidity}%, vento ${c.windspeedKmph}km/h`;
   } catch {
     return `Erro ao consultar clima de ${city}`;
   }
 }
 
-// ✅ max_results reduzido de 5 para 3 (economiza tokens no grátis)
+// ============================================
+// FERRAMENTA: PESQUISA WEB (Tavily)
+// ============================================
 async function webSearch(query: string): Promise<string> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) return "Pesquisa não configurada.";
@@ -80,12 +81,12 @@ async function webSearch(query: string): Promise<string> {
         api_key: apiKey,
         query,
         search_depth: "basic",
-        max_results: 3, // ✅ reduzido
+        max_results: 3,
       }),
     });
 
     clearTimeout(t);
-    if (!res.ok) return `Erro na pesquisa (${res.status})`;
+    if (!res.ok) return `Erro (${res.status})`;
 
     const data = await res.json();
     const r = data.results ?? [];
@@ -105,36 +106,129 @@ async function webSearch(query: string): Promise<string> {
   }
 }
 
+// ============================================
+// ⭐ NOVA FERRAMENTA: WIKIPEDIA
+// ============================================
+async function wikipediaSearch(query: string): Promise<string> {
+  try {
+    // 1. Busca o título do artigo mais relevante
+    const searchUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+      query
+    )}&format=json&origin=*&srlimit=1`;
+
+    const searchRes = await fetch(searchUrl, {
+      headers: { "User-Agent": "JARVIS-Assistant/2.0" },
+    });
+    if (!searchRes.ok) return `Erro na busca Wikipedia (${searchRes.status})`;
+
+    const searchData = await searchRes.json();
+    const results = searchData.query?.search ?? [];
+
+    if (results.length === 0) {
+      return `Nenhum artigo da Wikipedia encontrado para "${query}".`;
+    }
+
+    const title = results[0].title;
+
+    // 2. Pega o resumo do artigo
+    const summaryUrl = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+      title
+    )}`;
+
+    const summaryRes = await fetch(summaryUrl, {
+      headers: { "User-Agent": "JARVIS-Assistant/2.0" },
+    });
+    if (!summaryRes.ok) return `Erro ao carregar resumo (${summaryRes.status})`;
+
+    const data = await summaryRes.json();
+
+    const extract = data.extract ?? "";
+    const description = data.description ?? "";
+    const url = data.content_urls?.desktop?.page ?? `https://pt.wikipedia.org/wiki/${encodeURIComponent(title)}`;
+
+    if (!extract) {
+      return `Encontrei o artigo "${title}" mas não consegui extrair o resumo. Link: ${url}`;
+    }
+
+    return `[WIKIPEDIA: ${title}]\n${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
+  } catch (e: any) {
+    return `Erro Wikipedia: ${e.message}`;
+  }
+}
+
+// ============================================
+// FERRAMENTA: HORA
+// ============================================
 function currentTime(): string {
-  return `Agora: ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" })}`;
+  return `Agora: ${new Date().toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    dateStyle: "full",
+    timeStyle: "short",
+  })}`;
 }
 
 // ============================================
 // DETECÇÃO DE FERRAMENTAS
 // ============================================
 function detectToolCall(text: string): { name: string; args: any } | null {
-  const l = text.toLowerCase();
+  const l = text.toLowerCase().trim();
 
-  const w = l.match(/(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i);
+  // === CLIMA ===
+  const w = l.match(
+    /(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i
+  );
   if (w) return { name: "weather", args: { city: w[1].trim() } };
 
+  // === HORA ===
   if (/(?:que horas|horas são|hora atual|data de hoje|que dia)/i.test(l)) {
     return { name: "current_time", args: {} };
   }
 
-  const s = l.match(/(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:sobre\s+|na internet\s+|no google\s+)?(.+)/i);
-  if (s) return { name: "web_search", args: { query: s[1].trim() } };
+  // === PESQUISA EXPLÍCITA (Tavily) ===
+  if (
+    /(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?(.+)/i.test(
+      l
+    )
+  ) {
+    const query = l.replace(
+      /^.*?(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?/i,
+      ""
+    );
+    return { name: "web_search", args: { query: query.trim() } };
+  }
 
+  // === ⭐ WIKIPEDIA (perguntas factuais/definição) ===
+  const wikiPatterns = [
+    /^(?:o que é|o que são|o que foi)\s+(.+)/i,
+    /^(?:quem é|quem foi|quem são)\s+(.+)/i,
+    /^(?:me (?:fale|conte|explique) sobre)\s+(.+)/i,
+    /^(?:definição de|significado de|o significado de)\s+(.+)/i,
+    /^(?:o que significa)\s+(.+)/i,
+    /^(?:história (?:do|da|de))\s+(.+)/i,
+  ];
+
+  for (const pattern of wikiPatterns) {
+    const m = l.match(pattern);
+    if (m) {
+      const query = m[1]
+        .replace(/[?.!]+$/g, "")
+        .replace(/\b(?:mesmo|mesma|afinal)\b/gi, "")
+        .trim();
+      if (query.length > 1 && query.length < 100) {
+        return { name: "wikipedia", args: { query } };
+      }
+    }
+  }
+
+  // === PESQUISA AUTOMÁTICA (Tavily - temporal/factual) ===
   const triggers = [
-    /\b(?:elenco|escalação|time|jogadores|técnico|campeonato|classificação)\b/i,
+    /\b(?:elenco|escalação|jogadores|campeonato|classificação)\b/i,
     /\b(?:notícia|notícias|aconteceu|última hora)\b/i,
-    /\b(?:quem é|quem foi|quem será|quem ganhou|quem venceu)\b/i,
-    /\b(?:quando (?:é|foi|será|vai))\b/i,
-    /\b(?:onde (?:fica|está|foi))\b/i,
     /\b(?:preço|cotação|valor|quanto custa)\b/i,
     /\b(?:resultado|placar|jogo|partida|gol)\b/i,
-    /\b(?:hoje|agora|atualmente|esse ano|este ano)\b/i,
+    /\b(?:hoje|agora|atualmente|esse ano|este ano|essa semana)\b/i,
     /\b(?:202[3-9]|2030)\b/i,
+    /\b(?:últimas?|mais recente|mais novo)\b/i,
   ];
 
   const excl = /\b(?:meu|minha|meus|minhas|nossa|nosso)\b/i;
@@ -162,7 +256,8 @@ export default async function handler(req: Request) {
     const personaPrompt = PERSONAS[settings.persona ?? "jarvis"] ?? PERSONAS.jarvis;
     const modePrompt = MODES_PROMPT[settings.mode ?? "fast"] ?? MODES_PROMPT.fast;
 
-    const temperature = settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
+    const temperature =
+      settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
 
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
@@ -176,22 +271,27 @@ export default async function handler(req: Request) {
       `Contexto: ${now}.${factsSection}`,
     ].join("\n\n");
 
-    // Detecta ferramentas
+    // === DETECTA E EXECUTA FERRAMENTA ===
     const lastUser = messages[messages.length - 1];
     let toolResult = "";
+    let toolName = "";
     if (lastUser?.role === "user") {
       const tool = detectToolCall(lastUser.content);
       if (tool) {
+        toolName = tool.name;
         if (tool.name === "weather") toolResult = await getWeather(tool.args.city);
         else if (tool.name === "web_search") toolResult = await webSearch(tool.args.query);
+        else if (tool.name === "wikipedia") toolResult = await wikipediaSearch(tool.args.query);
         else if (tool.name === "current_time") toolResult = currentTime();
       }
     }
 
     const finalPrompt = toolResult
-      ? systemPrompt + `\n\n[RESULTADO DA BUSCA]\n${toolResult}\n[FIM]\n\nUse e cite [1], [2].`
+      ? systemPrompt +
+        `\n\n[RESULTADO DA FERRAMENTA: ${toolName}]\n${toolResult}\n[FIM DO RESULTADO]\n\nUse essas informações e cite a fonte quando relevante.`
       : systemPrompt;
 
+    // === FALLBACK EM CASCATA ===
     let lastError = "";
 
     for (const model of MODELS) {
@@ -210,10 +310,10 @@ export default async function handler(req: Request) {
             model,
             messages: [
               { role: "system", content: finalPrompt },
-              ...messages.slice(-8), // ✅ histórico reduzido
+              ...messages.slice(-8),
             ],
             temperature,
-            max_tokens: 1800, // ✅ reduzido
+            max_tokens: 1800,
             stream,
           }),
         });
@@ -231,7 +331,9 @@ export default async function handler(req: Request) {
             });
           }
           const data = await res.json();
-          return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
+          return Response.json({
+            content: data.choices?.[0]?.message?.content ?? "Sem resposta.",
+          });
         }
 
         lastError = `${model}: ${res.status}`;
