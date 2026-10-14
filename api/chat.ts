@@ -155,9 +155,9 @@ export default async function handler(req: Request) {
       },
       body: JSON.stringify({
         model: "qwen/qwen3.8-27b",
-        messages: [{ role: "system", content: finalSystemPrompt }, ...messages],
+       messages: [{ role: "system", content: finalSystemPrompt }, ...messages.slice(-8)],
         temperature: 0.85,
-        max_tokens: 4096,
+        max_tokens:800,
       }),
     });
 
