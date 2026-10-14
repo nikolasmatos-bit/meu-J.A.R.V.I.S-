@@ -22,13 +22,24 @@ export function ChatPage() {
   const [listening, setListening] = useState(false);
   const [booted, setBooted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [ambientOn, setAmbientOn] = useState(false);
+  const [wakeMode, setWakeMode] = useState(false);
+  const [wakeDetected, setWakeDetected] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const wakeRecRef = useRef<any>(null);
+  const ambientOnRef = useRef(false);
 
+  useEffect(() => {
+    ambientOnRef.current = ambientOn;
+  }, [ambientOn]);
+
+  // Boot
   useEffect(() => {
     const t = setTimeout(() => setBooted(true), 800);
     return () => clearTimeout(t);
   }, []);
 
+  // Timer
   useEffect(() => {
     if (state !== "thinking") {
       setElapsed(0);
@@ -38,6 +49,19 @@ export function ChatPage() {
     return () => clearInterval(t);
   }, [state]);
 
+  // Beep periódico enquanto pensa
+  useEffect(() => {
+    if (state !== "thinking") return;
+    const t = setInterval(() => SFX.thinkBeep(), 900);
+    return () => clearInterval(t);
+  }, [state]);
+
+  // Mudar humor do ambiente conforme estado
+  useEffect(() => {
+    if (!ambientOn) return;
+    SFX.setAmbientMood(state);
+  }, [state, ambientOn]);
+
   useEffect(() => {
     supabase
       .from("messages")
@@ -46,6 +70,53 @@ export function ChatPage() {
       .order("created_at", { ascending: true })
       .then(({ data }) => data && setMessages(data as Msg[]));
   }, [threadId]);
+
+  const toggleAmbient = () => {
+    if (ambientOn) {
+      SFX.stopAmbient();
+      setAmbientOn(false);
+    } else {
+      SFX.startAmbient();
+      SFX.setAmbientMood(state);
+      setAmbientOn(true);
+    }
+  };
+
+  const toggleWakeMode = () => {
+    if (wakeMode) {
+      wakeRecRef.current?.stop();
+      setWakeMode(false);
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return alert("Reconhecimento de fala não suportado.");
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.continuous = true;
+    rec.interimResults = false;
+
+    rec.onresult = (e: any) => {
+      const transcript = e.results[e.results.length - 1][0].transcript.trim();
+      if (/jarvis/i.test(transcript)) {
+        setWakeDetected(true);
+        SFX.wakeDetected();
+        setTimeout(() => setWakeDetected(false), 1500);
+        const clean = transcript.replace(/jarvis/gi, "").replace(/^[,.\s]+/, "").trim();
+        if (clean) send(clean);
+      }
+    };
+
+    rec.onend = () => {
+      if (wakeMode) {
+        try { rec.start(); } catch {}
+      }
+    };
+
+    rec.start();
+    wakeRecRef.current = rec;
+    setWakeMode(true);
+    SFX.click();
+  };
 
   const toggleListening = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -57,7 +128,7 @@ export function ChatPage() {
     }
     const rec = new SR();
     rec.lang = "pt-BR";
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = false;
     rec.onresult = (e: any) => send(e.results[e.results.length - 1][0].transcript);
     rec.onend = () => setListening(false);
@@ -80,7 +151,7 @@ export function ChatPage() {
 
   const send = async (text: string) => {
     if (!text.trim()) return;
-    SFX.reactorEngage();
+    SFX.sendWhoosh();
     const userMsg: Msg = { id: crypto.randomUUID(), role: "user", content: text };
     const next = [...messages, userMsg];
     setMessages(next);
@@ -117,7 +188,7 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
-      {/* Cantos HUD na tela toda */}
+      {/* Cantos HUD */}
       {booted && (
         <>
           <div className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-cyan-400/60 z-30 pointer-events-none" />
@@ -127,23 +198,22 @@ export function ChatPage() {
         </>
       )}
 
-      {/* Texto vertical esquerdo */}
+      {/* Texto vertical */}
       <div
         className="fixed left-2 top-1/2 -translate-y-1/2 z-20 hidden lg:block pointer-events-none"
         style={{ writingMode: "vertical-rl" }}
       >
         <div className="font-mono text-[9px] tracking-[0.5em] text-cyan-400/40 code-pulse">
-          ▸ J.A.R.V.I.S. SYSTEM v2.0.4 · STARK INDUSTRIES · ENCRYPTED CHANNEL
+          ▸ J.A.R.V.I.S. SYSTEM v2.0.4 · STARK INDUSTRIES · ENCRYPTED
         </div>
       </div>
 
-      {/* Texto vertical direito */}
       <div
         className="fixed right-2 top-1/2 -translate-y-1/2 z-20 hidden lg:block pointer-events-none"
         style={{ writingMode: "vertical-rl", transform: "translateY(-50%) rotate(180deg)" }}
       >
         <div className="font-mono text-[9px] tracking-[0.5em] text-cyan-400/40 code-pulse">
-          ▸ AUTH OK · AES256 · LINK STABLE · POWER 98.4% · TEMP OK
+          ▸ AUTH OK · AES256 · LINK STABLE · PWR 98.4%
         </div>
       </div>
 
@@ -153,14 +223,33 @@ export function ChatPage() {
         style={{
           width: "80vmin",
           height: "80vmin",
-          background:
-            "radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 60%)",
+          background: "radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 60%)",
           filter: "blur(50px)",
           zIndex: 0,
         }}
         animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.9, 0.4] }}
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
       />
+
+      {/* Wake indicator */}
+      <AnimatePresence>
+        {wakeDetected && (
+          <motion.div
+            key="wake"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 2 }}
+            className="fixed top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+          >
+            <div
+              className="font-orbitron text-2xl tracking-[0.5em] text-amber-300"
+              style={{ textShadow: "0 0 20px #fbbf24, 0 0 40px #f59e0b" }}
+            >
+              ◉ JARVIS
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Boot */}
       <AnimatePresence>
@@ -186,7 +275,7 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* HUD LATERAL */}
+      {/* HUD */}
       {booted && (
         <>
           <div className="absolute top-28 left-8 space-y-3 z-20 hidden lg:block">
@@ -195,21 +284,8 @@ export function ChatPage() {
             <StatusBar label="NET" color="#67e8f9" />
             <StatusBar label="PWR" color="#10b981" />
           </div>
-
           <div className="absolute top-28 right-8 z-20 hidden lg:block">
             <Radar />
-          </div>
-
-          <div className="absolute bottom-36 left-8 text-[9px] font-mono text-cyan-400/40 space-y-0.5 z-20 hidden lg:block code-pulse">
-            <div>▸ AUTH_OK</div>
-            <div>▸ ENC_AES256</div>
-            <div>▸ LINK:STABLE</div>
-          </div>
-
-          <div className="absolute bottom-36 right-8 text-[9px] font-mono text-cyan-400/40 text-right z-20 hidden lg:block">
-            <div>LAT -23.5505</div>
-            <div>LNG -46.6333</div>
-            <div>SYS v2.0.4</div>
           </div>
         </>
       )}
@@ -221,10 +297,14 @@ export function ChatPage() {
         transition={{ duration: 0.6, delay: 0.3 }}
         className="relative z-10 p-4 border-b border-cyan-500/20 backdrop-blur-xl bg-slate-950/40"
       >
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex justify-between items-center gap-4 flex-wrap">
           <motion.button
             whileHover={{ x: -4 }}
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => {
+              if (ambientOn) SFX.stopAmbient();
+              wakeRecRef.current?.stop();
+              navigate({ to: "/" });
+            }}
             className="flex items-center gap-3 font-orbitron text-cyan-400 tracking-widest hover:text-cyan-200 transition"
             style={{ textShadow: "0 0 10px #22d3ee" }}
           >
@@ -232,22 +312,69 @@ export function ChatPage() {
             <span>VOLTAR</span>
           </motion.button>
 
-          <div className="flex items-center gap-4 text-[10px] tracking-widest text-slate-500 font-mono">
-            <motion.span
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="flex items-center gap-1.5"
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Botão ambiente */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleAmbient}
+              className={`px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition ${
+                ambientOn
+                  ? "border-amber-400 text-amber-300 bg-amber-500/10"
+                  : "border-cyan-500/30 text-cyan-400 hover:border-cyan-400"
+              }`}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
-              <span className="text-emerald-300">ONLINE</span>
-            </motion.span>
-            <span className="hidden md:inline">OPERADOR: {user.email}</span>
-            <span className="hidden lg:inline px-2 py-0.5 rounded border border-cyan-500/30 text-cyan-400">
-              SYS v2.0.4
-            </span>
+              {ambientOn ? "🔊 AMBIENT" : "🔇 AMBIENT"}
+            </motion.button>
+
+            {/* Botão wake */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleWakeMode}
+              className={`px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-1.5 ${
+                wakeMode
+                  ? "border-red-400 text-red-300 bg-red-500/10 animate-pulse"
+                  : "border-cyan-500/30 text-cyan-400 hover:border-cyan-400"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${wakeMode ? "bg-red-400" : "bg-slate-600"}`} />
+              {wakeMode ? "WAKE ON" : "WAKE OFF"}
+            </motion.button>
+
+            <div className="flex items-center gap-4 text-[10px] tracking-widest text-slate-500 font-mono px-3">
+              <motion.span
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="flex items-center gap-1.5"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
+                <span className="text-emerald-300">ONLINE</span>
+              </motion.span>
+            </div>
           </div>
         </div>
       </motion.header>
+
+      {/* Wake mode banner */}
+      {wakeMode && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative z-10 text-center py-2"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/30">
+            <motion.div
+              animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_#ef4444]"
+            />
+            <span className="font-orbitron text-[10px] tracking-[0.4em] text-red-300">
+              DIGA "JARVIS" PARA ATIVAR
+            </span>
+          </div>
+        </motion.div>
+      )}
 
       {/* Reactor */}
       <motion.div
@@ -259,7 +386,7 @@ export function ChatPage() {
         <ArcReactor state={state} />
       </motion.div>
 
-      {/* Indicador de status */}
+      {/* Status */}
       <AnimatePresence mode="wait">
         {state === "thinking" && (
           <motion.div
@@ -288,12 +415,10 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Mensagens */}
       <main className="flex-1 overflow-y-auto pb-4 relative z-10">
         <Conversation messages={messages} />
       </main>
 
-      {/* Input */}
       <motion.footer
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -321,10 +446,7 @@ function StatusBar({ label, color }: { label: string; color: string }) {
   }, []);
   return (
     <div className="w-32">
-      <div
-        className="flex justify-between text-[9px] font-mono tracking-widest"
-        style={{ color }}
-      >
+      <div className="flex justify-between text-[9px] font-mono tracking-widest" style={{ color }}>
         <span>{label}</span>
         <span>{value.toFixed(0)}%</span>
       </div>
