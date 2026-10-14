@@ -15,12 +15,47 @@ const PERSONAS: Record<string, string> = {
 // ============================================
 const MODES_PROMPT: Record<string, string> = {
   fast: "MODO RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos. Vá direto ao ponto.",
-  deep: "MODO PROFUNDO: raciocine passo a passo. ANTES da resposta final, escreva seu pensamento entre as tags [thinking]...[/thinking]. Depois dê a resposta completa.",
-  creative: "MODO CRIATIVO: use metáforas vívidas, analogias inesperadas e imaginação fértil. Ouse nas ideias.",
-  expert: "MODO EXPERT: seja técnico, preciso e detalhado. Use terminologia correta. Trate o usuário como especialista.",
+  deep: "MODO PROFUNDO: raciocine passo a passo antes de responder.",
+  creative: "MODO CRIATIVO: use metáforas vívidas, analogias inesperadas e imaginação fértil.",
+  expert: "MODO EXPERT: seja técnico, preciso e detalhado. Use terminologia correta.",
   debate: "MODO DEBATE: apresente argumentos dos DOIS lados. Seja equilibrado. No final, dê sua síntese.",
   roleplay: "MODO ROLEPLAY: assuma completamente qualquer personagem ou cenário pedido. Mantenha imersão total.",
 };
+
+// ============================================
+// AUTO-REFLEXÃO — o pulo do gato
+// ============================================
+const REFLEXION_PROMPT = `
+## PROCESSO DE AUTO-REFLEXÃO (OBRIGATÓRIO)
+
+Para PERGUNTAS COMPLEXAS (lógica, matemática, análise, código, decisões importantes, conselhos), siga este processo interno:
+
+1. **RASCUNHO INICIAL** — Escreva uma resposta preliminar com o que você sabe.
+2. **AUTO-CRÍTICA** — Revise seu rascunho e pergunte a si mesmo:
+   - Existe algum erro factual?
+   - Estou assumindo algo sem verificar?
+   - Há vieses ou simplificações perigosas?
+   - Faltou algum ponto importante?
+   - A resposta está realmente útil ou é superficial?
+   - Se eu tivesse que argumentar CONTRA essa resposta, o que diria?
+3. **VERSÃO FINAL** — Reescreva a resposta corrigindo os problemas encontrados.
+
+**Tudo isso (rascunho + crítica) vai DENTRO das tags [thinking]...[/thinking].**
+**A resposta final vai FORA das tags.**
+
+Para perguntas SIMPLES (conversa casual, saudações, fatos diretos), responda direto SEM usar reflection.
+
+Exemplo de formato:
+\`\`\`
+[thinking]
+Rascunho inicial: [escreva sua primeira resposta]
+Auto-crítica: [identifique 2-3 problemas]
+Refinamento: [o que precisa mudar]
+[/thinking]
+
+[Resposta final refinada aqui]
+\`\`\`
+`;
 
 const REGRAS = `Responda em português do Brasil.
 
@@ -30,12 +65,12 @@ REGRAS:
 - Formato: parágrafos curtos, negrito moderado, listas com '-', código com 3 crases.`;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
-type Settings = { tone?: string; length?: string; volume?: number; persona?: string; mode?: string };
+type Settings = { tone?: string; length?: string; volume?: number; persona?: string; mode?: string; autoReflect?: boolean };
 
 const MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
 
 // ============================================
-// FUNÇÃO: CLIMA
+// FUNÇÕES AUXILIARES
 // ============================================
 async function getWeather(city: string): Promise<string> {
   try {
@@ -50,9 +85,6 @@ async function getWeather(city: string): Promise<string> {
   }
 }
 
-// ============================================
-// FUNÇÃO: PESQUISA WEB (Tavily)
-// ============================================
 async function webSearch(query: string): Promise<string> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) return "Pesquisa não configurada.";
@@ -94,9 +126,6 @@ async function webSearch(query: string): Promise<string> {
   }
 }
 
-// ============================================
-// FUNÇÃO: HORA ATUAL
-// ============================================
 function currentTime(): string {
   const now = new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
@@ -106,37 +135,27 @@ function currentTime(): string {
   return `Agora: ${now} (horário de Brasília)`;
 }
 
-// ============================================
-// DETECÇÃO DE FERRAMENTAS
-// ============================================
 function detectToolCall(text: string): { name: string; args: any } | null {
   const l = text.toLowerCase();
 
-  // Clima
   const w = l.match(/(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i);
   if (w) return { name: "weather", args: { city: w[1].trim() } };
 
-  // Hora
   if (/(?:que horas|horas são|hora atual|data de hoje|que dia)/i.test(l)) {
     return { name: "current_time", args: {} };
   }
 
-  // Pesquisa explícita
   const s = l.match(/(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:sobre\s+|na internet\s+|no google\s+)?(.+)/i);
   if (s) return { name: "web_search", args: { query: s[1].trim() } };
 
-  // Pesquisa automática
   const triggers = [
     /\b(?:hoje|agora|atualmente|essa semana|este mês|este ano)\b/i,
     /\b(?:últimas?\s+notícias?|notícias?\s+(?:sobre|de|do|da))\b/i,
     /\b(?:cotação|preço|valor)\s+(?:do|da|de)\b/i,
     /\b(?:resultado|placar|jogo|partida|gol)\s+(?:do|da|de|entre)\b/i,
     /\b(?:quem\s+é|quem\s+foi|quem\s+será)\s+(?:o|a)\b/i,
-    /\b(?:o\s+que\s+(?:é|foi|aconteceu))\b/i,
     /\b(?:quando\s+(?:foi|é|será|vai))\b/i,
     /\b(?:onde\s+(?:fica|está|foi))\b/i,
-    /\b(?:qual\s+(?:é|foi|será))\b/i,
-    /\b(?:mais\s+recentes?|mais\s+novos?)\b/i,
   ];
 
   const excl = /\b(?:meu|minha|meus|minhas|nós|você|vc|teu|tua|sua|seu)\b/i;
@@ -146,6 +165,33 @@ function detectToolCall(text: string): { name: string; args: any } | null {
   }
 
   return null;
+}
+
+// ============================================
+// DETECÇÃO DE COMPLEXIDADE
+// ============================================
+function isComplexQuery(text: string): boolean {
+  const l = text.toLowerCase();
+
+  // Muito curto → simples
+  if (text.length < 25) return false;
+
+  // Padrões que indicam complexidade
+  const complexTriggers = [
+    /\b(?:por que|porque|pq)\b/i,
+    /\b(?:como\s+(?:funciona|fazer|resolver|calcular|implementar))\b/i,
+    /\b(?:explique|explica|detalhe|aprofunde|analise|analisa)\b/i,
+    /\b(?:compare|comparar|diferença entre)\b/i,
+    /\b(?:calcule|resolva|equação|fórmula|matemática)\b/i,
+    /\b(?:escreva|programa|código|função|algoritmo)\b/i,
+    /\b(?:estratégia|planejamento|decisão|conselho|recomenda)\b/i,
+    /\b(?:vantagens|desvantagens|prós|contras)\b/i,
+    /\b(?:o que você acha|sua opinião|você acredita)\b/i,
+    /\b(?:debug|erro|bug|problema)\b/i,
+    /\d+\s*[\+\-\*\/]\s*\d+/, // contém operação matemática
+  ];
+
+  return complexTriggers.some((r) => r.test(l));
 }
 
 // ============================================
@@ -174,15 +220,25 @@ export default async function handler(req: Request) {
       ? "\n\n=== MEMÓRIA DO USUÁRIO ===\n" + facts.map((f) => `- ${f}`).join("\n")
       : "";
 
-    const systemPrompt = [
-      personaPrompt,
-      modePrompt,
-      REGRAS,
-      `Contexto temporal: ${now}.${factsSection}`,
-    ].join("\n\n");
+    // Verifica se a última mensagem é complexa
+    const lastUser = messages[messages.length - 1];
+    const needsReflection =
+      settings.autoReflect !== false &&
+      lastUser?.role === "user" &&
+      isComplexQuery(lastUser.content);
+
+    // Monta o system prompt
+    const systemPromptParts = [personaPrompt, modePrompt];
+
+    if (needsReflection) {
+      systemPromptParts.push(REFLEXION_PROMPT);
+    }
+
+    systemPromptParts.push(REGRAS, `Contexto temporal: ${now}.${factsSection}`);
+
+    const systemPrompt = systemPromptParts.join("\n\n");
 
     // Detecta ferramentas
-    const lastUser = messages[messages.length - 1];
     let toolResult = "";
     if (lastUser?.role === "user") {
       const tool = detectToolCall(lastUser.content);
@@ -219,7 +275,7 @@ export default async function handler(req: Request) {
               ...messages.slice(-12),
             ],
             temperature,
-            max_tokens: 2500,
+            max_tokens: needsReflection ? 3500 : 2500,
             stream,
           }),
         });
