@@ -9,9 +9,16 @@ type Props = {
   primaryColor?: string;
 };
 
-export function PromptInput({ onSend, listening, onToggleMic, disabled, onHistory, primaryColor = "#22d3ee" }: Props) {
+export function PromptInput({
+  onSend,
+  listening,
+  onToggleMic,
+  disabled,
+  onHistory,
+  primaryColor = "#22d3ee",
+}: Props) {
   const [value, setValue] = useState("");
-  const [focus, setFocus] = useState(false);
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = () => {
@@ -35,48 +42,84 @@ export function PromptInput({ onSend, listening, onToggleMic, disabled, onHistor
   };
 
   return (
-    <div className="flex gap-2 max-w-3xl mx-auto w-full">
-      <button onClick={onToggleMic}
-        className={`px-4 rounded-lg border-2 transition-all ${listening ? "animate-pulse" : ""}`}
-        style={{
-          background: listening ? primaryColor : "rgba(2, 6, 23, 0.8)",
-          borderColor: listening ? primaryColor : `${primaryColor}66`,
-          color: listening ? "#020617" : primaryColor,
-          boxShadow: listening ? `0 0 20px ${primaryColor}99` : `0 0 8px ${primaryColor}33`,
-        }}
-        title="Microfone">
-        🎙
-      </button>
+    <div className="font-mono">
+      {/* Label da linha */}
+      <div className="flex items-center gap-3 mb-1.5">
+        <span className="text-[9px] tracking-[0.3em]" style={{ color: `${primaryColor}88` }}>
+          INPUT
+        </span>
+        <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${primaryColor}33, transparent)` }} />
+        <span className="text-[9px] tracking-widest text-slate-700">
+          {value.length.toString().padStart(3, "0")} CHARS
+        </span>
+      </div>
 
-      <div className="flex-1 relative">
+      {/* Prompt terminal */}
+      <div
+        className="flex items-stretch border transition-all duration-200"
+        style={{
+          borderColor: focused ? primaryColor : `${primaryColor}44`,
+          background: "#05070d",
+          boxShadow: focused ? `0 0 20px ${primaryColor}33` : "none",
+        }}
+      >
+        {/* Prompt marker */}
+        <div
+          className="flex items-center px-3 border-r select-none text-[11px] tracking-widest shrink-0"
+          style={{ borderColor: `${primaryColor}33`, color: primaryColor }}
+        >
+          <span className="opacity-60">CMD</span>
+          <span className="mx-1.5 opacity-40">›</span>
+        </div>
+
         <input
           ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKey}
-          onFocus={() => setFocus(true)}
-          onBlur={() => setFocus(false)}
-          placeholder="Digite um comando, senhor…"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="digite sua diretiva_"
           disabled={disabled}
-          className="w-full bg-slate-950/80 border-2 rounded-lg px-4 py-3 outline-none text-slate-100 placeholder:text-slate-600 tracking-wide transition-all disabled:opacity-40 font-mono text-sm"
-          style={{
-            borderColor: focus ? primaryColor : `${primaryColor}66`,
-            boxShadow: focus ? `0 0 24px ${primaryColor}66, inset 0 0 12px ${primaryColor}0d` : `0 0 12px ${primaryColor}26`,
-          }}
+          className="flex-1 bg-transparent px-3 py-3 outline-none text-slate-100 placeholder:text-slate-700 text-[13px] tracking-wide disabled:opacity-40"
+          autoComplete="off"
         />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-600 font-mono tracking-widest pointer-events-none">
-          {value.length.toString().padStart(4, "0")}
-        </div>
+
+        {/* MIC */}
+        <button
+          onClick={onToggleMic}
+          className="px-3 border-l text-[11px] tracking-widest transition-all shrink-0"
+          style={{
+            borderColor: `${primaryColor}33`,
+            color: listening ? "#05070d" : `${primaryColor}88`,
+            background: listening ? primaryColor : "transparent",
+          }}
+          title="Microfone"
+        >
+          {listening ? "● ON" : "◉ MIC"}
+        </button>
+
+        {/* ENVIAR */}
+        <button
+          onClick={submit}
+          disabled={disabled || !value.trim()}
+          className="px-5 text-[10px] tracking-[0.3em] font-bold transition-all shrink-0 disabled:opacity-30"
+          style={{
+            background: value.trim() && !disabled ? primaryColor : "transparent",
+            color: value.trim() && !disabled ? "#05070d" : primaryColor,
+            borderLeft: `1px solid ${primaryColor}33`,
+          }}
+        >
+          EXEC ▸
+        </button>
       </div>
 
-      <button onClick={submit} disabled={disabled}
-        className="px-6 rounded-lg font-bold font-orbitron text-xs tracking-[0.2em] transition-all disabled:opacity-40 text-slate-950"
-        style={{
-          background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}cc 100%)`,
-          boxShadow: `0 0 20px ${primaryColor}88`,
-        }}>
-        ENVIAR
-      </button>
+      {/* Hint inferior */}
+      <div className="flex justify-between text-[8px] tracking-widest text-slate-700 mt-1.5">
+        <span>ENTER · enviar</span>
+        <span>↑ · histórico</span>
+        <span>ESC · fechar menus</span>
+      </div>
     </div>
   );
 }
