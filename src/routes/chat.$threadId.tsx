@@ -6,6 +6,7 @@ import { useJarvis } from "../components/jarvis/Bootstrap";
 import { ArcReactor } from "../components/jarvis/ArcReactor";
 import { MouseTrail } from "../components/jarvis/MouseTrail";
 import { MemoryPanel } from "../components/jarvis/MemoryPanel";
+import { TopHud, BottomHud, ConversationMiniMap } from "../components/jarvis/HudOverlay";
 import { Conversation } from "../components/ai-elements/conversation";
 import { PromptInput } from "../components/ai-elements/prompt-input";
 import { SFX } from "../lib/sfx";
@@ -71,6 +72,7 @@ export function ChatPage() {
 
   const theme = THEMES[persona];
   const currentMode = MODES[mode];
+  const totalTokens = messages.reduce((acc, m) => acc + Math.floor(m.content.length / 4), 0);
 
   useEffect(() => {
     const p = loadPersona();
@@ -104,7 +106,6 @@ export function ChatPage() {
     SFX.setAmbientMood(state);
   }, [state, ambientOn]);
 
-  // Atalhos
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
       if (e.key === "Escape") { setMemoryOpen(false); setPersonaMenuOpen(false); setModeMenuOpen(false); }
@@ -192,7 +193,6 @@ export function ChatPage() {
   };
 
   const speak = (text: string) => {
-    // Remove thinking antes de falar
     const clean = text.replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, "").trim();
     const s = loadSettings();
     const utter = new SpeechSynthesisUtterance(clean);
@@ -285,13 +285,22 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
+      {/* HUDs flutuantes */}
+      {booted && (
+        <>
+          <TopHud color={theme.primary} state={state} />
+          <BottomHud color={theme.primary} messageCount={messages.length} tokens={totalTokens} />
+          <ConversationMiniMap messageCount={messages.length} color={theme.primary} />
+        </>
+      )}
+
       <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} facts={facts} onFactsChange={setFacts} userId={user?.id ?? ""} />
 
       {/* Learned indicator */}
       <AnimatePresence>
         {learnedIndicator && (
           <motion.div key="learned" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            className="fixed top-24 right-6 z-[80] max-w-xs">
+            className="fixed top-32 right-6 z-[80] max-w-xs">
             <div className="p-3 rounded-lg border backdrop-blur-xl"
               style={{ borderColor: `${theme.primary}88`, background: theme.bg, boxShadow: `0 0 30px ${theme.glow}` }}>
               <div className="flex items-center gap-2 mb-1">
@@ -320,13 +329,13 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Cantos HUD */}
+      {/* Cantos HUD da tela */}
       {booted && (
         <>
-          <div className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
-          <div className="fixed top-3 right-3 w-8 h-8 border-t-2 border-r-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
-          <div className="fixed bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
-          <div className="fixed bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 z-40 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed top-3 right-3 w-8 h-8 border-t-2 border-r-2 z-40 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 z-40 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 z-40 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
         </>
       )}
 
@@ -354,40 +363,57 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* HUD lateral */}
+      {/* HUD lateral ESQUERDO */}
       {booted && (
-        <>
-          <div className="absolute top-28 left-6 space-y-3 z-20 hidden lg:block">
-            <StatusBar label="CPU" color={theme.primary} />
-            <StatusBar label="MEM" color={theme.accent} />
-            <StatusBar label="NET" color={theme.primary} />
+        <div className="absolute top-32 left-6 space-y-3 z-20 hidden lg:block">
+          <StatusBar label="CPU" color={theme.primary} />
+          <StatusBar label="MEM" color={theme.accent} />
+          <StatusBar label="NET" color={theme.primary} />
+          <StatusBar label="PWR" color="#10b981" />
+          <div className="w-32 mt-3 pt-3 border-t" style={{ borderColor: `${theme.primary}22` }}>
+            <div className="text-[8px] font-mono tracking-widest mb-1" style={{ color: `${theme.primary}88` }}>
+              ▸ TEMPERATURE
+            </div>
+            <TempGauge color={theme.primary} />
           </div>
-          <div className="absolute top-28 right-6 z-20 hidden lg:block">
-            <Radar color={theme.primary} />
+        </div>
+      )}
+
+      {/* HUD lateral DIREITO */}
+      {booted && (
+        <div className="absolute top-32 right-6 z-20 hidden lg:block space-y-4">
+          <Radar color={theme.primary} />
+          <div className="w-44 h-28 border rounded p-2 bg-slate-950/60 backdrop-blur-sm"
+            style={{ borderColor: `${theme.primary}33` }}>
+            <div className="text-[8px] font-mono tracking-widest border-b pb-1 mb-1"
+              style={{ color: theme.primary, borderColor: `${theme.primary}33` }}>
+              ▸ TERMINAL
+            </div>
+            <TerminalLog color={theme.primary} />
           </div>
-        </>
+        </div>
       )}
 
       {/* Waveform */}
       <AnimatePresence>
         {state === "speaking" && (
           <motion.div key="wave" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+            className="fixed bottom-36 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
             <div className="flex items-end gap-1 h-12 px-4">
-              {Array.from({ length: 24 }).map((_, i) => (
+              {Array.from({ length: 32 }).map((_, i) => (
                 <motion.div key={i} className="w-1 rounded-full"
                   style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }}
                   animate={{ height: [`${15 + Math.random() * 40}%`, `${40 + Math.random() * 60}%`, `${20 + Math.random() * 50}%`, `${50 + Math.random() * 50}%`] }}
-                  transition={{ duration: 0.4 + Math.random() * 0.3, repeat: Infinity, delay: i * 0.03 }} />
+                  transition={{ duration: 0.4 + Math.random() * 0.3, repeat: Infinity, delay: i * 0.02 }} />
               ))}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Header */}
+      {/* HEADER */}
       <motion.header initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, delay: 0.3 }}
-        className="relative z-10 p-4 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
+        className="relative z-20 mt-20 p-4 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
         style={{ borderColor: `${theme.primary}33` }}>
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-4 flex-wrap">
           <motion.button whileHover={{ x: -4 }}
@@ -502,13 +528,6 @@ export function ChatPage() {
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }} />
               {facts.length}
             </motion.button>
-
-            <div className="flex items-center gap-3 text-[10px] tracking-widest text-slate-500 font-mono px-2">
-              <motion.span animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
-                <span className="text-emerald-300 hidden md:inline">ONLINE</span>
-              </motion.span>
-            </div>
           </div>
         </div>
       </motion.header>
@@ -525,14 +544,14 @@ export function ChatPage() {
         </motion.div>
       )}
 
-      <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, delay: 0.5 }} className="py-8 relative z-10">
+      <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, delay: 0.5 }} className="py-6 relative z-10">
         <ArcReactor state={state} color={theme.primary} />
       </motion.div>
 
       <AnimatePresence mode="wait">
         {state === "thinking" && !streamingText && (
           <motion.div key="thinking" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="text-center relative z-10 -mt-6 mb-2">
+            className="text-center relative z-10 -mt-4 mb-2">
             <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full border backdrop-blur-sm"
               style={{ background: theme.bg, borderColor: `${theme.primary}55` }}>
               <div className="flex gap-1">
@@ -550,12 +569,12 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 overflow-y-auto pb-4 relative z-10">
+      <main className="flex-1 overflow-y-auto pb-20 relative z-10">
         <Conversation messages={messages} streamingText={streamingText} />
       </main>
 
       <motion.footer initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, delay: 0.7 }}
-        className="p-4 border-t backdrop-blur-xl bg-slate-950/40 relative z-10 transition-colors duration-700"
+        className="relative z-20 p-4 border-t backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
         style={{ borderColor: `${theme.primary}33` }}>
         <PromptInput onSend={send} listening={listening} onToggleMic={toggleListening} disabled={state === "thinking"} onHistory={navigateHistory} primaryColor={theme.primary} />
       </motion.footer>
@@ -582,18 +601,89 @@ function StatusBar({ label, color }: { label: string; color: string }) {
   );
 }
 
+function TempGauge({ color }: { color: string }) {
+  const [temp, setTemp] = useState(38);
+  useEffect(() => {
+    const i = setInterval(() => setTemp((v) => Math.max(30, Math.min(70, v + (Math.random() - 0.5) * 2))), 1500);
+    return () => clearInterval(i);
+  }, []);
+  return (
+    <div className="flex items-center gap-2">
+      <div className="text-[10px] font-mono tabular-nums w-8" style={{ color }}>{temp.toFixed(0)}°</div>
+      <div className="flex-1 h-1 bg-slate-900 rounded-sm overflow-hidden">
+        <motion.div className="h-full" style={{ background: temp > 60 ? "#ef4444" : color, boxShadow: `0 0 8px ${color}` }}
+          animate={{ width: `${(temp / 70) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function Radar({ color }: { color: string }) {
+  const [blips] = useState(() => Array.from({ length: 4 }, () => ({
+    angle: Math.random() * Math.PI * 2,
+    distance: 0.3 + Math.random() * 0.6,
+    delay: Math.random() * 3,
+  })));
+
   return (
     <div className="w-28 h-28 relative">
       {[0, 3, 6, 9, 12].map((i) => (
         <div key={i} className="absolute rounded-full border" style={{ inset: `${i}px`, borderColor: `${color}40` }} />
       ))}
-      <div className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
+      <div className="absolute top-1/2 left-0 right-0 h-px" style={{ background: `${color}22` }} />
+      <div className="absolute left-1/2 top-0 bottom-0 w-px" style={{ background: `${color}22` }} />
+
+      {blips.map((b, i) => (
+        <motion.div key={i} className="absolute w-1.5 h-1.5 rounded-full bg-emerald-400"
+          style={{
+            left: `calc(50% + ${Math.cos(b.angle) * b.distance * 50}px)`,
+            top: `calc(50% + ${Math.sin(b.angle) * b.distance * 50}px)`,
+            boxShadow: "0 0 8px #10b981",
+          }}
+          animate={{ opacity: [0, 1, 0], scale: [0.5, 1.5, 0.5] }}
+          transition={{ duration: 4, repeat: Infinity, delay: b.delay }} />
+      ))}
+
       <div className="radar-sweep absolute inset-0">
         <div className="absolute top-1/2 left-1/2 w-14 h-px origin-left"
           style={{ background: `linear-gradient(90deg, ${color}, transparent)`, transform: "translateY(-50%)" }} />
       </div>
+
+      <div className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
+    </div>
+  );
+}
+
+function TerminalLog({ color }: { color: string }) {
+  const lines = [
+    "▸ AUTH_OK",
+    "▸ ENC:AES256",
+    "▸ LINK:OK",
+    "▸ STARK_DB",
+    "▸ SCAN:CLEAR",
+    "▸ SYS:NOMINAL",
+    "▸ PWR:98%",
+  ];
+  const [visible, setVisible] = useState<string[]>([]);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVisible((v) => [...v.slice(-3), lines[idx % lines.length]]);
+      setIdx((i) => i + 1);
+    }, 1800);
+    return () => clearInterval(t);
+  }, [idx]);
+
+  return (
+    <div className="space-y-0.5">
+      {visible.map((l, i) => (
+        <motion.div key={i} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
+          className="text-[8px] font-mono truncate" style={{ color: `${color}aa` }}>
+          {l}
+        </motion.div>
+      ))}
     </div>
   );
 }
