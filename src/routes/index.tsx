@@ -236,8 +236,8 @@ export function HomePage() {
             ▸ SISTEMA ONLINE · AGUARDANDO COMANDO
           </div>
 
-          {/* TÍTULO SVG — NÃO BUGAR JAMAIS */}
-          <div className="flex justify-center px-4">
+          {/* TÍTULO SVG — CORRIGIDO E GARANTIDO */}
+          <div className="flex justify-center px-4 w-full">
             <svg
               viewBox="0 0 1200 140"
               className="w-full max-w-5xl"
@@ -261,8 +261,8 @@ export function HomePage() {
                     repeatCount="indefinite"
                   />
                 </linearGradient>
-                <filter id="titleGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="4" result="blur" />
+                <filter id="titleGlow" x="-10%" y="-10%" width="120%" height="120%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
                   <feMerge>
                     <feMergeNode in="blur" />
                     <feMergeNode in="SourceGraphic" />
@@ -270,14 +270,16 @@ export function HomePage() {
                 </filter>
               </defs>
               <text
-                x="50%"
-                y="75%"
+                x="600"
+                y="75"
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fontFamily="Orbitron, sans-serif"
-                fontSize="88"
+                fontSize="72"
                 fontWeight="700"
-                letterSpacing="8"
+                letterSpacing="2"
+                textLength="1120"
+                lengthAdjust="spacingAndGlyphs"
                 fill="url(#titleGrad)"
                 filter="url(#titleGlow)"
               >
