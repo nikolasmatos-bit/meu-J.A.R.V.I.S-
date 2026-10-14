@@ -13,12 +13,9 @@ const JARVIS_MASTER_PROMPT = [
   "- Pode expressar opiniões, previsões, criar ficção, escrever código, discutir estratégias.",
   "",
   "Ferramentas disponíveis:",
-  "Você tem acesso a ferramentas que pode chamar quando precisar:",
-  "- weather: consulta clima atual de uma cidade",
+  "- weather: clima de uma cidade",
   "- web_search: pesquisa informações na internet",
-  "- current_time: retorna data e hora atuais",
-  "",
-  "Use as ferramentas quando a pergunta exigir informação em tempo real ou dados externos.",
+  "- current_time: data e hora atuais",
   "",
   "Formato:",
   "- Parágrafos curtos, negrito com moderação, listas com '-', código em blocos com três crases.",
@@ -28,7 +25,15 @@ const JARVIS_MASTER_PROMPT = [
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type Settings = { tone?: string; length?: string; volume?: number };
 
-// ==== FERRAMENTAS ====
+// ============================================
+// LISTA DE MODELOS EM CASCATA (fallback)
+// ============================================
+const MODELS = [
+  "openai/gpt-oss-120b",   // 1º: mais inteligente
+  "openai/gpt-oss-20b",    // 2º: mais limite
+  "qwen/qwen3.8-27b",      // 3º: menos filtros
+];
+
 async function getWeather(city: string) {
   try {
     const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
@@ -71,27 +76,15 @@ function currentTime() {
   return `Agora são: ${now} (horário de Brasília)`;
 }
 
-// Detecta se o usuário pediu pra usar ferramenta
 function detectToolCall(text: string): { name: string; args: any } | null {
   const lower = text.toLowerCase();
-
-  // Clima
   const weatherMatch = lower.match(/(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i);
-  if (weatherMatch) {
-    return { name: "weather", args: { city: weatherMatch[1].trim() } };
-  }
-
-  // Hora
+  if (weatherMatch) return { name: "weather", args: { city: weatherMatch[1].trim() } };
   if (/(?:que horas|horas são|hora atual|data de hoje|que dia)/i.test(lower)) {
     return { name: "current_time", args: {} };
   }
-
-  // Pesquisa web (se a mensagem contém "pesquise", "procure", "busque")
   const searchMatch = lower.match(/(?:pesquise|procure|busque|pesquisa)\s+(?:sobre\s+)?(.+)/i);
-  if (searchMatch) {
-    return { name: "web_search", args: { query: searchMatch[1].trim() } };
-  }
-
+  if (searchMatch) return { name: "web_search", args: { query: searchMatch[1].trim() } };
   return null;
 }
 
@@ -114,7 +107,6 @@ export default async function handler(req: Request) {
 
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
-    // Injeta memória do usuário
     const factsSection = facts.length
       ? "\n\nO que você já sabe sobre este usuário:\n" + facts.map((f) => `- ${f}`).join("\n")
       : "";
@@ -125,50 +117,72 @@ export default async function handler(req: Request) {
       ...modulators,
     ].join("\n\n");
 
-    // ==== DETECÇÃO DE FERRAMENTA ====
+    // Detecção de ferramentas
     const lastUserMessage = messages[messages.length - 1];
     let toolResult = "";
 
     if (lastUserMessage?.role === "user") {
       const tool = detectToolCall(lastUserMessage.content);
       if (tool) {
-        if (tool.name === "weather") {
-          toolResult = await getWeather(tool.args.city);
-        } else if (tool.name === "web_search") {
-          toolResult = await webSearch(tool.args.query);
-        } else if (tool.name === "current_time") {
-          toolResult = currentTime();
-        }
+        if (tool.name === "weather") toolResult = await getWeather(tool.args.city);
+        else if (tool.name === "web_search") toolResult = await webSearch(tool.args.query);
+        else if (tool.name === "current_time") toolResult = currentTime();
       }
     }
 
-    // Se teve ferramenta, injeta o resultado no prompt
     const finalSystemPrompt = toolResult
       ? systemPrompt + "\n\n[RESULTADO DA FERRAMENTA]\n" + toolResult + "\n[FIM DO RESULTADO]\n\nUse essas informações para responder de forma natural."
       : systemPrompt;
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
-      },
-      body: JSON.stringify({
-       model: "openai/gpt-oss-20b",
-       messages: [{ role: "system", content: finalSystemPrompt }, ...messages],
-        temperature: 0.85,
-        max_tokens:4096,
-      }),
-    });
+    // ============================================
+    // FALLBACK EM CASCATA
+    // ============================================
+    let lastError = "";
 
-    if (!res.ok) {
-      const err = await res.text();
-      return new Response("Erro IA: " + err, { status: res.status });
+    for (const model of MODELS) {
+      try {
+        console.log(`[JARVIS] Tentando modelo: ${model}`);
+
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: finalSystemPrompt }, ...messages],
+            temperature: 0.85,
+            max_tokens: 4096,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const content = data.choices?.[0]?.message?.content ?? "Sem resposta.";
+          console.log(`[JARVIS] Sucesso com: ${model}`);
+          return Response.json({ content });
+        }
+
+        // Erro — tenta o próximo
+        const errText = await res.text();
+        lastError = `${model}: ${res.status} - ${errText}`;
+        console.log(`[JARVIS] Falha em ${model}: ${res.status}`);
+
+        // Se for erro 400 grave (modelo não existe), continua
+        // Se for 429 (rate limit), também continua
+        continue;
+      } catch (e: any) {
+        lastError = `${model}: ${e.message}`;
+        continue;
+      }
     }
 
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content ?? "Sem resposta.";
-    return Response.json({ content });
+    // Se chegou aqui, todos falharam
+    return new Response(
+      "Todos os modelos falharam. Último erro: " + lastError,
+      { status: 500 }
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return new Response("Erro servidor: " + msg, { status: 500 });
