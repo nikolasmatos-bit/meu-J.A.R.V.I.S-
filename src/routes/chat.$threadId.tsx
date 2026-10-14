@@ -29,7 +29,6 @@ export function ChatPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Cronômetro quando está pensando
   useEffect(() => {
     if (state !== "thinking") {
       setElapsed(0);
@@ -118,7 +117,37 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
-      {/* Aura central pulsante */}
+      {/* Cantos HUD na tela toda */}
+      {booted && (
+        <>
+          <div className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-cyan-400/60 z-30 pointer-events-none" />
+          <div className="fixed top-3 right-3 w-8 h-8 border-t-2 border-r-2 border-cyan-400/60 z-30 pointer-events-none" />
+          <div className="fixed bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-cyan-400/60 z-30 pointer-events-none" />
+          <div className="fixed bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 border-cyan-400/60 z-30 pointer-events-none" />
+        </>
+      )}
+
+      {/* Texto vertical esquerdo */}
+      <div
+        className="fixed left-2 top-1/2 -translate-y-1/2 z-20 hidden lg:block pointer-events-none"
+        style={{ writingMode: "vertical-rl" }}
+      >
+        <div className="font-mono text-[9px] tracking-[0.5em] text-cyan-400/40 code-pulse">
+          ▸ J.A.R.V.I.S. SYSTEM v2.0.4 · STARK INDUSTRIES · ENCRYPTED CHANNEL
+        </div>
+      </div>
+
+      {/* Texto vertical direito */}
+      <div
+        className="fixed right-2 top-1/2 -translate-y-1/2 z-20 hidden lg:block pointer-events-none"
+        style={{ writingMode: "vertical-rl", transform: "translateY(-50%) rotate(180deg)" }}
+      >
+        <div className="font-mono text-[9px] tracking-[0.5em] text-cyan-400/40 code-pulse">
+          ▸ AUTH OK · AES256 · LINK STABLE · POWER 98.4% · TEMP OK
+        </div>
+      </div>
+
+      {/* Aura central */}
       <motion.div
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
         style={{
@@ -142,11 +171,7 @@ export function ChatPage() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[200] bg-slate-950 flex items-center justify-center"
           >
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center"
-            >
+            <div className="text-center">
               <div
                 className="font-orbitron text-cyan-400 text-3xl tracking-[0.5em] animate-pulse"
                 style={{ textShadow: "0 0 30px #22d3ee" }}
@@ -156,7 +181,7 @@ export function ChatPage() {
               <div className="text-[10px] text-cyan-400/60 tracking-[0.4em] mt-2 font-mono">
                 ESTABELECENDO CONEXÃO NEURAL
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -164,24 +189,24 @@ export function ChatPage() {
       {/* HUD LATERAL */}
       {booted && (
         <>
-          <div className="absolute top-28 left-6 space-y-3 z-20 hidden lg:block">
+          <div className="absolute top-28 left-8 space-y-3 z-20 hidden lg:block">
             <StatusBar label="CPU" color="#22d3ee" />
             <StatusBar label="MEM" color="#0ea5e9" />
             <StatusBar label="NET" color="#67e8f9" />
+            <StatusBar label="PWR" color="#10b981" />
           </div>
 
-          <div className="absolute top-28 right-6 z-20 hidden lg:block">
+          <div className="absolute top-28 right-8 z-20 hidden lg:block">
             <Radar />
           </div>
 
-          <div className="absolute bottom-36 left-6 text-[9px] font-mono text-cyan-400/40 space-y-0.5 z-20 hidden lg:block code-pulse">
+          <div className="absolute bottom-36 left-8 text-[9px] font-mono text-cyan-400/40 space-y-0.5 z-20 hidden lg:block code-pulse">
             <div>▸ AUTH_OK</div>
             <div>▸ ENC_AES256</div>
             <div>▸ LINK:STABLE</div>
-            <div>▸ PWR:98.4%</div>
           </div>
 
-          <div className="absolute bottom-36 right-6 text-[9px] font-mono text-cyan-400/40 text-right z-20 hidden lg:block">
+          <div className="absolute bottom-36 right-8 text-[9px] font-mono text-cyan-400/40 text-right z-20 hidden lg:block">
             <div>LAT -23.5505</div>
             <div>LNG -46.6333</div>
             <div>SYS v2.0.4</div>
@@ -224,16 +249,14 @@ export function ChatPage() {
         </div>
       </motion.header>
 
-      {/* Reactor menor */}
+      {/* Reactor */}
       <motion.div
         initial={{ opacity: 0, scale: 0.7 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="py-6 relative z-10"
+        className="py-8 relative z-10"
       >
-        <div className="scale-75 origin-center">
-          <ArcReactor state={state} />
-        </div>
+        <ArcReactor state={state} />
       </motion.div>
 
       {/* Indicador de status */}
@@ -244,9 +267,9 @@ export function ChatPage() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="text-center relative z-10 -mt-4 mb-2"
+            className="text-center relative z-10 -mt-6 mb-2"
           >
-            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30">
+            <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 backdrop-blur-sm">
               <div className="flex gap-1">
                 {[0, 1, 2].map((i) => (
                   <motion.div
@@ -297,7 +320,7 @@ function StatusBar({ label, color }: { label: string; color: string }) {
     return () => clearInterval(i);
   }, []);
   return (
-    <div className="w-28">
+    <div className="w-32">
       <div
         className="flex justify-between text-[9px] font-mono tracking-widest"
         style={{ color }}
@@ -319,15 +342,16 @@ function StatusBar({ label, color }: { label: string; color: string }) {
 
 function Radar() {
   return (
-    <div className="w-24 h-24 relative">
+    <div className="w-28 h-28 relative">
       <div className="absolute inset-0 rounded-full border border-cyan-500/40" />
       <div className="absolute inset-3 rounded-full border border-cyan-500/25" />
       <div className="absolute inset-6 rounded-full border border-cyan-500/15" />
       <div className="absolute inset-9 rounded-full border border-cyan-500/10" />
+      <div className="absolute inset-12 rounded-full border border-cyan-500/5" />
       <div className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
       <div className="radar-sweep absolute inset-0">
         <div
-          className="absolute top-1/2 left-1/2 w-12 h-px origin-left"
+          className="absolute top-1/2 left-1/2 w-14 h-px origin-left"
           style={{
             background: "linear-gradient(90deg, #22d3ee, transparent)",
             transform: "translateY(-50%)",
