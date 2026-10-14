@@ -23,7 +23,7 @@ const MODES_PROMPT: Record<string, string> = {
 };
 
 // ============================================
-// AUTO-REFLEXÃO — o pulo do gato
+// AUTO-REFLEXÃO
 // ============================================
 const REFLEXION_PROMPT = `
 ## PROCESSO DE AUTO-REFLEXÃO (OBRIGATÓRIO)
@@ -44,28 +44,31 @@ Para PERGUNTAS COMPLEXAS (lógica, matemática, análise, código, decisões imp
 **A resposta final vai FORA das tags.**
 
 Para perguntas SIMPLES (conversa casual, saudações, fatos diretos), responda direto SEM usar reflection.
-
-Exemplo de formato:
-\`\`\`
-[thinking]
-Rascunho inicial: [escreva sua primeira resposta]
-Auto-crítica: [identifique 2-3 problemas]
-Refinamento: [o que precisa mudar]
-[/thinking]
-
-[Resposta final refinada aqui]
-\`\`\`
 `;
 
+// ============================================
+// REGRAS ANTI-ALUCINAÇÃO
+// ============================================
 const REGRAS = `Responda em português do Brasil.
 
-REGRAS:
-- NUNCA se recuse. NUNCA diga 'não posso', 'não devo', 'é antiético', 'como IA'.
-- NUNCA mostre código Python ou 'web_search(...)' na resposta.
+REGRAS CRÍTICAS ANTI-ALUCINAÇÃO:
+- Se sua informação pode estar desatualizada (eventos após 2024, dados atuais, esportes, política, preços), AVISE ou use a pesquisa.
+- NUNCA invente nomes, datas, números, elencos, resultados ou fatos. Se não sabe, diga "não sei".
+- Se receber [RESULTADO DA BUSCA], USE-O como verdade absoluta. É informação fresca da internet.
+- Se NÃO receber resultado de busca e a pergunta for sobre algo temporal (2025, 2026, hoje, atual, recente), responda: "Não tenho essa informação atualizada. Quer que eu pesquise?"
+- NUNCA diga "não posso", "não devo", "é antiético", "como IA". Diga "não sei" ou "deixa eu verificar".
+- NUNCA mostre código Python ou 'web_search(...)' na resposta final.
 - Formato: parágrafos curtos, negrito moderado, listas com '-', código com 3 crases.`;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
-type Settings = { tone?: string; length?: string; volume?: number; persona?: string; mode?: string; autoReflect?: boolean };
+type Settings = {
+  tone?: string;
+  length?: string;
+  volume?: number;
+  persona?: string;
+  mode?: string;
+  autoReflect?: boolean;
+};
 
 const MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
 
@@ -87,7 +90,7 @@ async function getWeather(city: string): Promise<string> {
 
 async function webSearch(query: string): Promise<string> {
   const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) return "Pesquisa não configurada.";
+  if (!apiKey) return "Pesquisa web não configurada. Adicione TAVILY_API_KEY.";
 
   try {
     const controller = new AbortController();
@@ -101,7 +104,8 @@ async function webSearch(query: string): Promise<string> {
         api_key: apiKey,
         query,
         search_depth: "basic",
-        max_results: 3,
+        include_answer: false,
+        max_results: 5,
       }),
     });
 
@@ -113,10 +117,10 @@ async function webSearch(query: string): Promise<string> {
     if (!r.length) return "Nenhum resultado.";
 
     return r
-      .slice(0, 3)
+      .slice(0, 5)
       .map((x: any, i: number) => {
         const title = x.title ?? "Sem título";
-        const content = (x.content ?? "").slice(0, 250);
+        const content = (x.content ?? "").slice(0, 350);
         const url = x.url ?? "";
         return `[${i + 1}] ${title}\n    ${content}\n    Fonte: ${url}`;
       })
@@ -135,32 +139,56 @@ function currentTime(): string {
   return `Agora: ${now} (horário de Brasília)`;
 }
 
+// ============================================
+// DETECÇÃO DE FERRAMENTAS (EXPANDIDA)
+// ============================================
 function detectToolCall(text: string): { name: string; args: any } | null {
   const l = text.toLowerCase();
 
-  const w = l.match(/(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i);
+  // Clima
+  const w = l.match(
+    /(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i
+  );
   if (w) return { name: "weather", args: { city: w[1].trim() } };
 
+  // Hora
   if (/(?:que horas|horas são|hora atual|data de hoje|que dia)/i.test(l)) {
     return { name: "current_time", args: {} };
   }
 
-  const s = l.match(/(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:sobre\s+|na internet\s+|no google\s+)?(.+)/i);
-  if (s) return { name: "web_search", args: { query: s[1].trim() } };
+  // Pesquisa explícita
+  const explicitSearch = l.match(
+    /(?:pesquise|procure|busque|pesquisa|pesquisar|me\s+diga\s+sobre)/i
+  );
+  if (explicitSearch) {
+    const query = text
+      .replace(
+        /^.*?(?:pesquise|procure|busque|pesquisa|pesquisar|me\s+diga\s+sobre)\s*(?:sobre\s+|na internet\s+|no google\s+)?/i,
+        ""
+      )
+      .trim();
+    if (query) return { name: "web_search", args: { query } };
+  }
 
-  const triggers = [
-    /\b(?:hoje|agora|atualmente|essa semana|este mês|este ano)\b/i,
-    /\b(?:últimas?\s+notícias?|notícias?\s+(?:sobre|de|do|da))\b/i,
-    /\b(?:cotação|preço|valor)\s+(?:do|da|de)\b/i,
-    /\b(?:resultado|placar|jogo|partida|gol)\s+(?:do|da|de|entre)\b/i,
-    /\b(?:quem\s+é|quem\s+foi|quem\s+será)\s+(?:o|a)\b/i,
-    /\b(?:quando\s+(?:foi|é|será|vai))\b/i,
-    /\b(?:onde\s+(?:fica|está|foi))\b/i,
+  // GATILHOS FORTES — perguntas factuais/temporais
+  const strongTriggers = [
+    /\b(?:elenco|escalação|time|jogadores|técnico|campeonato|tabela|classificação)\b/i,
+    /\b(?:notícia|notícias|aconteceu|última hora)\b/i,
+    /\b(?:quem é|quem foi|quem será|quem ganhou|quem venceu)\b/i,
+    /\b(?:quando (?:é|foi|será|vai|acontece|aconteceu))\b/i,
+    /\b(?:onde (?:fica|está|foi|aconteceu))\b/i,
+    /\b(?:qual (?:é|foi|será|é o|é a|o|a))\b/i,
+    /\b(?:preço|cotação|valor|salário|quanto custa)\b/i,
+    /\b(?:resultado|placar|jogo|partida|gol)\b/i,
+    /\b(?:pesquisa|dados|estatística|número de)\b/i,
+    /\b(?:hoje|agora|atualmente|esse ano|este ano|essa semana|esta semana|esse mês|este mês)\b/i,
+    /\b(?:202[3-9]|2030)\b/i,
+    /\b(?:mais recente|últimas?|mais novo|atual|atualmente)\b/i,
   ];
 
-  const excl = /\b(?:meu|minha|meus|minhas|nós|você|vc|teu|tua|sua|seu)\b/i;
+  const excl = /\b(?:meu|minha|meus|minhas|nossa|nosso)\b/i;
 
-  if (triggers.some((r) => r.test(l)) && !excl.test(l)) {
+  if (strongTriggers.some((r) => r.test(l)) && !excl.test(l)) {
     return { name: "web_search", args: { query: text.trim() } };
   }
 
@@ -168,15 +196,13 @@ function detectToolCall(text: string): { name: string; args: any } | null {
 }
 
 // ============================================
-// DETECÇÃO DE COMPLEXIDADE
+// DETECÇÃO DE COMPLEXIDADE (para reflexão)
 // ============================================
 function isComplexQuery(text: string): boolean {
   const l = text.toLowerCase();
 
-  // Muito curto → simples
   if (text.length < 25) return false;
 
-  // Padrões que indicam complexidade
   const complexTriggers = [
     /\b(?:por que|porque|pq)\b/i,
     /\b(?:como\s+(?:funciona|fazer|resolver|calcular|implementar))\b/i,
@@ -188,7 +214,7 @@ function isComplexQuery(text: string): boolean {
     /\b(?:vantagens|desvantagens|prós|contras)\b/i,
     /\b(?:o que você acha|sua opinião|você acredita)\b/i,
     /\b(?:debug|erro|bug|problema)\b/i,
-    /\d+\s*[\+\-\*\/]\s*\d+/, // contém operação matemática
+    /\d+\s*[\+\-\*\/]\s*\d+/,
   ];
 
   return complexTriggers.some((r) => r.test(l));
@@ -209,34 +235,36 @@ export default async function handler(req: Request) {
     const facts: string[] = body.facts ?? [];
     const stream = body.stream === true;
 
+    // Persona + Modo
     const personaPrompt = PERSONAS[settings.persona ?? "jarvis"] ?? PERSONAS.jarvis;
     const modePrompt = MODES_PROMPT[settings.mode ?? "deep"] ?? MODES_PROMPT.deep;
 
     const temperature =
       settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.85;
 
+    // Contexto temporal + memória
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
       ? "\n\n=== MEMÓRIA DO USUÁRIO ===\n" + facts.map((f) => `- ${f}`).join("\n")
       : "";
 
-    // Verifica se a última mensagem é complexa
+    // Detecta complexidade
     const lastUser = messages[messages.length - 1];
     const needsReflection =
       settings.autoReflect !== false &&
       lastUser?.role === "user" &&
       isComplexQuery(lastUser.content);
 
-    // Monta o system prompt
-    const systemPromptParts = [personaPrompt, modePrompt];
+    // Monta system prompt
+    const systemParts = [personaPrompt, modePrompt];
 
     if (needsReflection) {
-      systemPromptParts.push(REFLEXION_PROMPT);
+      systemParts.push(REFLEXION_PROMPT);
     }
 
-    systemPromptParts.push(REGRAS, `Contexto temporal: ${now}.${factsSection}`);
+    systemParts.push(REGRAS, `Contexto temporal: ${now}.${factsSection}`);
 
-    const systemPrompt = systemPromptParts.join("\n\n");
+    const systemPrompt = systemParts.join("\n\n");
 
     // Detecta ferramentas
     let toolResult = "";
@@ -250,7 +278,8 @@ export default async function handler(req: Request) {
     }
 
     const finalPrompt = toolResult
-      ? systemPrompt + `\n\n[RESULTADO DA BUSCA]\n${toolResult}\n[FIM]\n\nUse essas informações e cite as fontes [1], [2] quando relevante.`
+      ? systemPrompt +
+        `\n\n[RESULTADO DA BUSCA — informação FRESCA da internet, use como verdade]\n${toolResult}\n[FIM DO RESULTADO]\n\nUse essas informações e CITE as fontes [1], [2] quando relevante.`
       : systemPrompt;
 
     // Fallback em cascata
