@@ -5,30 +5,36 @@
 @tailwind utilities;
 
 :root {
-  --jarvis-cyan: #22d3ee;
-  --jarvis-blue: #0ea5e9;
-  --jarvis-dark: #020617;
+  /* Tema padrão (JARVIS) — muda via applyTheme() */
+  --theme-primary: #22d3ee;
+  --theme-primary-rgb: 34, 211, 238;
+  --theme-accent: #0ea5e9;
+  --theme-accent-rgb: 14, 165, 233;
+  --theme-glow: rgba(34, 211, 238, 0.5);
+  --theme-bg: rgba(34, 211, 238, 0.08);
 }
 
-html, body, #root {
-  height: 100%;
-  margin: 0;
-}
+html, body, #root { height: 100%; margin: 0; }
 
 body {
-  background: radial-gradient(ellipse at 50% 0%, #0a1929 0%, #051020 40%, #010509 80%);
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(var(--theme-primary-rgb), 0.08) 0%,
+    #051020 40%,
+    #010509 80%
+  );
   color: #e2e8f0;
   font-family: "Inter", system-ui, sans-serif;
   overflow-x: hidden;
   min-height: 100vh;
+  transition: background 0.8s ease;
 }
 
-/* Grid de pontos animado */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(34, 211, 238, 0.25) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(var(--theme-primary-rgb), 0.25) 1px, transparent 1px);
   background-size: 30px 30px;
   pointer-events: none;
   z-index: 0;
@@ -42,7 +48,6 @@ body::before {
   50% { opacity: 0.6; }
 }
 
-/* Aura central respirando */
 body::after {
   content: "";
   position: fixed;
@@ -52,11 +57,12 @@ body::after {
   height: 80vmin;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.12) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--theme-bg) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
   filter: blur(30px);
   animation: breathe 8s ease-in-out infinite;
+  transition: background 0.8s ease;
 }
 
 @keyframes breathe {
@@ -64,24 +70,23 @@ body::after {
   50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
 }
 
-/* Tipografia */
 .font-orbitron {
   font-family: "Orbitron", sans-serif;
   letter-spacing: 0.15em;
 }
 
-/* Scanline ciano */
 .scanline {
   position: fixed;
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.9), transparent);
+  background: linear-gradient(90deg, transparent, var(--theme-primary), transparent);
   opacity: 0.5;
   animation: scanlineMove 8s linear infinite;
   pointer-events: none;
   z-index: 100;
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.8);
+  box-shadow: 0 0 20px var(--theme-glow);
+  transition: background 0.8s ease, box-shadow 0.8s ease;
 }
 
 @keyframes scanlineMove {
@@ -89,41 +94,25 @@ body::after {
   100% { top: 100vh; }
 }
 
-/* Cantos HUD */
-.hud-corner {
-  position: relative;
-}
-
-.hud-corner::before,
-.hud-corner::after {
+.hud-corner { position: relative; }
+.hud-corner::before, .hud-corner::after {
   content: "";
   position: absolute;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--jarvis-cyan);
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  width: 16px; height: 16px;
+  border: 2px solid var(--theme-primary);
+  box-shadow: 0 0 8px var(--theme-glow);
 }
+.hud-corner::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+.hud-corner::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
 
-.hud-corner::before {
-  top: -1px; left: -1px;
-  border-right: 0; border-bottom: 0;
-}
-
-.hud-corner::after {
-  bottom: -1px; right: -1px;
-  border-left: 0; border-top: 0;
-}
-
-/* Scrollbar */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: #051020; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #22d3ee, #0ea5e9);
+  background: linear-gradient(180deg, var(--theme-primary), var(--theme-accent));
   border-radius: 4px;
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+  box-shadow: 0 0 8px var(--theme-glow);
 }
 
-/* Typewriter cursor */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -131,13 +120,12 @@ body::after {
 
 .typewriter-cursor::after {
   content: "▊";
-  color: var(--jarvis-cyan);
+  color: var(--theme-primary);
   animation: blink 0.7s infinite;
   margin-left: 3px;
-  text-shadow: 0 0 8px var(--jarvis-cyan);
+  text-shadow: 0 0 8px var(--theme-glow);
 }
 
-/* Entrada de mensagem */
 @keyframes messageIn {
   from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
@@ -147,13 +135,11 @@ body::after {
   animation: messageIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Boot */
 @keyframes bootBar {
   from { width: 0%; }
   to { width: 100%; }
 }
 
-/* Piscar código */
 @keyframes codePulse {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.8; }
@@ -161,7 +147,6 @@ body::after {
 
 .code-pulse { animation: codePulse 2s ease-in-out infinite; }
 
-/* Radar */
 @keyframes radarSweep {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -172,23 +157,11 @@ body::after {
   transform-origin: center;
 }
 
-/* Equalizer bars */
-@keyframes eqBar {
-  0%, 100% { height: 20%; }
-  50% { height: 100%; }
-}
-
-.eq-bar {
-  animation: eqBar 0.6s ease-in-out infinite;
-}
-
-/* Seleção */
 ::selection {
-  background: rgba(34, 211, 238, 0.4);
+  background: var(--theme-glow);
   color: white;
 }
 
-/* Botões hover */
 button {
   transition: all 0.2s ease;
 }

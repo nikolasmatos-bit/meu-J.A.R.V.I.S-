@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   onSend: (text: string) => void;
   listening: boolean;
   onToggleMic: () => void;
   disabled?: boolean;
+  onHistory?: (dir: "up" | "down") => string;
+  primaryColor?: string;
 };
 
-export function PromptInput({ onSend, listening, onToggleMic, disabled }: Props) {
+export function PromptInput({ onSend, listening, onToggleMic, disabled, onHistory, primaryColor = "#22d3ee" }: Props) {
   const [value, setValue] = useState("");
   const [focus, setFocus] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = () => {
     if (!value.trim() || disabled) return;
@@ -17,42 +20,52 @@ export function PromptInput({ onSend, listening, onToggleMic, disabled }: Props)
     setValue("");
   };
 
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") { submit(); return; }
+    if (e.key === "ArrowUp" && onHistory && !value) {
+      e.preventDefault();
+      const prev = onHistory("up");
+      if (prev) setValue(prev);
+    }
+    if (e.key === "ArrowDown" && onHistory) {
+      e.preventDefault();
+      const next = onHistory("down");
+      setValue(next || "");
+    }
+  };
+
   return (
     <div className="flex gap-2 max-w-3xl mx-auto w-full">
-      {/* Microfone */}
       <button
         onClick={onToggleMic}
-        className={`px-4 rounded-lg border-2 transition-all ${
-          listening
-            ? "bg-cyan-500 border-cyan-400 animate-pulse text-slate-950"
-            : "bg-slate-950/80 border-cyan-500/40 hover:border-cyan-400 text-cyan-400"
-        }`}
+        className={`px-4 rounded-lg border-2 transition-all ${listening ? "animate-pulse text-slate-950" : "bg-slate-950/80"}`}
         style={{
-          boxShadow: listening
-            ? "0 0 20px rgba(34, 211, 238, 0.6)"
-            : "0 0 8px rgba(34, 211, 238, 0.2)",
+          background: listening ? primaryColor : undefined,
+          borderColor: listening ? primaryColor : `${primaryColor}66`,
+          color: listening ? "#020617" : primaryColor,
+          boxShadow: listening ? `0 0 20px ${primaryColor}99` : `0 0 8px ${primaryColor}33`,
         }}
         title="Microfone"
       >
         🎙
       </button>
 
-      {/* Input */}
       <div className="flex-1 relative">
         <input
+          ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
+          onKeyDown={handleKey}
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
           placeholder="Digite um comando, senhor…"
           disabled={disabled}
           className="w-full bg-slate-950/80 border-2 rounded-lg px-4 py-3 outline-none text-slate-100 placeholder:text-slate-600 tracking-wide transition-all disabled:opacity-40 font-mono text-sm"
           style={{
-            borderColor: focus ? "#22d3ee" : "rgba(34, 211, 238, 0.4)",
+            borderColor: focus ? primaryColor : `${primaryColor}66`,
             boxShadow: focus
-              ? "0 0 24px rgba(34, 211, 238, 0.4), inset 0 0 12px rgba(34, 211, 238, 0.05)"
-              : "0 0 12px rgba(34, 211, 238, 0.15)",
+              ? `0 0 24px ${primaryColor}66, inset 0 0 12px ${primaryColor}0d`
+              : `0 0 12px ${primaryColor}26`,
           }}
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-600 font-mono tracking-widest pointer-events-none">
@@ -60,14 +73,13 @@ export function PromptInput({ onSend, listening, onToggleMic, disabled }: Props)
         </div>
       </div>
 
-      {/* Enviar */}
       <button
         onClick={submit}
         disabled={disabled}
         className="px-6 rounded-lg font-bold font-orbitron text-xs tracking-[0.2em] transition-all disabled:opacity-40 text-slate-950"
         style={{
-          background: "linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%)",
-          boxShadow: "0 0 20px rgba(34, 211, 238, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.1)",
+          background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}cc 100%)`,
+          boxShadow: `0 0 20px ${primaryColor}88`,
         }}
       >
         ENVIAR
