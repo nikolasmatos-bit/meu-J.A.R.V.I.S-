@@ -309,6 +309,22 @@ export function ChatPage() {
     setState("thinking");
     setStreamingText("");
 
+    // Timeout de segurança — se não responder em 45s, libera o usuário
+    const safetyTimeout = setTimeout(() => {
+      console.warn("[JARVIS] timeout de segurança atingido");
+      setStreamingText("");
+      setState("idle");
+      try { SFX.error(); } catch {}
+      setMessages((m) => [
+        ...m,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "⚠️ O servidor demorou demais para responder. Tente novamente ou reformule a pergunta.",
+        },
+      ]);
+    }, 45000);
+
     console.log("[JARVIS] mensagem adicionada, iniciando stream...");
 
     saveLearnedFacts(text);
@@ -326,6 +342,7 @@ export function ChatPage() {
           setStreamingText((prev) => prev + chunk);
         },
         async (fullText) => {
+          clearTimeout(safetyTimeout);
           console.log("[JARVIS] resposta completa recebida");
           setMessages((m) => [
             ...m,
@@ -343,6 +360,7 @@ export function ChatPage() {
             .eq("title", "Nova conversa");
         },
         (err) => {
+          clearTimeout(safetyTimeout);
           console.error("[JARVIS] erro no stream:", err);
           try { SFX.error(); } catch {}
           setMessages((m) => [
@@ -354,6 +372,7 @@ export function ChatPage() {
         }
       );
     } catch (err: any) {
+      clearTimeout(safetyTimeout);
       console.error("[JARVIS] catch final:", err);
       try { SFX.error(); } catch {}
       setMessages((m) => [
@@ -543,7 +562,6 @@ export function ChatPage() {
           </motion.button>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* PERSONA */}
             <div className="relative">
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -621,7 +639,6 @@ export function ChatPage() {
               </AnimatePresence>
             </div>
 
-            {/* MODO */}
             <div className="relative">
               <motion.button
                 whileHover={{ scale: 1.05 }}
