@@ -64,9 +64,6 @@ export const THEMES: Record<Persona, Theme> = {
   },
 };
 
-// ============================================
-// MODOS DE RACIOCÍNIO
-// ============================================
 export type ReasoningMode = "fast" | "deep" | "creative" | "expert" | "debate" | "roleplay";
 
 export type Mode = {
@@ -86,7 +83,7 @@ export const MODES: Record<ReasoningMode, Mode> = {
     emoji: "⚡",
     desc: "Respostas curtas e diretas",
     color: "#10b981",
-    systemPrompt: "Modo RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos. Vá direto ao ponto.",
+    systemPrompt: "MODO RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos.",
     temperature: 0.5,
   },
   deep: {
@@ -95,7 +92,7 @@ export const MODES: Record<ReasoningMode, Mode> = {
     emoji: "🧠",
     desc: "Raciocínio passo a passo",
     color: "#8b5cf6",
-    systemPrompt: "Modo PROFUNDO: raciocine passo a passo. Mostre seu pensamento entre [thinking]...[/thinking] ANTES da resposta final. Depois dê a resposta completa e estruturada.",
+    systemPrompt: "MODO PROFUNDO: raciocine passo a passo.",
     temperature: 0.7,
   },
   creative: {
@@ -104,7 +101,7 @@ export const MODES: Record<ReasoningMode, Mode> = {
     emoji: "🎨",
     desc: "Imaginação máxima",
     color: "#ec4899",
-    systemPrompt: "Modo CRIATIVO: use metáforas vívidas, analogias inesperadas e imaginação fértil. Ouse nas ideias. Traga ângulos que ninguém pensou.",
+    systemPrompt: "MODO CRIATIVO: use metáforas vívidas e imaginação fértil.",
     temperature: 1.1,
   },
   expert: {
@@ -113,7 +110,7 @@ export const MODES: Record<ReasoningMode, Mode> = {
     emoji: "🔬",
     desc: "Técnico e preciso",
     color: "#06b6d4",
-    systemPrompt: "Modo EXPERT: seja técnico, preciso e detalhado. Use terminologia correta. Cite conceitos avançados. Trate o usuário como especialista.",
+    systemPrompt: "MODO EXPERT: seja técnico, preciso e detalhado.",
     temperature: 0.4,
   },
   debate: {
@@ -122,7 +119,7 @@ export const MODES: Record<ReasoningMode, Mode> = {
     emoji: "⚖️",
     desc: "Argumenta os dois lados",
     color: "#f59e0b",
-    systemPrompt: "Modo DEBATE: apresente argumentos dos DOIS lados de qualquer questão. Seja equilibrado. No final, dê sua síntese.",
+    systemPrompt: "MODO DEBATE: apresente argumentos dos DOIS lados.",
     temperature: 0.8,
   },
   roleplay: {
@@ -131,7 +128,7 @@ export const MODES: Record<ReasoningMode, Mode> = {
     emoji: "🎭",
     desc: "Assume personagens",
     color: "#ef4444",
-    systemPrompt: "Modo ROLEPLAY: se o usuário pedir, assuma completamente qualquer personagem, personalidade ou cenário. Mantenha a imersão total.",
+    systemPrompt: "MODO ROLEPLAY: assuma completamente qualquer personagem.",
     temperature: 1.0,
   },
 };
@@ -155,10 +152,11 @@ export function loadPersona(): Persona {
   return saved && THEMES[saved] ? saved : "jarvis";
 }
 
+// ✅ PADRÃO: RÁPIDO (para economizar tokens no grátis)
 export function loadMode(): ReasoningMode {
-  if (typeof window === "undefined") return "deep";
+  if (typeof window === "undefined") return "fast";
   const saved = localStorage.getItem("jarvis.mode") as ReasoningMode;
-  return saved && MODES[saved] ? saved : "deep";
+  return saved && MODES[saved] ? saved : "fast";
 }
 
 export function saveMode(m: ReasoningMode) {
