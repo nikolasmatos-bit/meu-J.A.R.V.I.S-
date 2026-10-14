@@ -10,6 +10,7 @@ export type Theme = {
   name: string;
   emoji: string;
   tagline: string;
+  voicePitch: number;
 };
 
 export const THEMES: Record<Persona, Theme> = {
@@ -23,6 +24,7 @@ export const THEMES: Record<Persona, Theme> = {
     name: "J.A.R.V.I.S.",
     emoji: "◆",
     tagline: "Just A Rather Very Intelligent System",
+    voicePitch: 1,
   },
   friday: {
     primary: "#a855f7",
@@ -34,6 +36,7 @@ export const THEMES: Record<Persona, Theme> = {
     name: "F.R.I.D.A.Y.",
     emoji: "◈",
     tagline: "Female Replacement Intelligent Digital Assistant Youth",
+    voicePitch: 1.2,
   },
   ultron: {
     primary: "#ef4444",
@@ -45,6 +48,7 @@ export const THEMES: Record<Persona, Theme> = {
     name: "U.L.T.R.O.N.",
     emoji: "◉",
     tagline: "There are no strings on me",
+    voicePitch: 0.6,
   },
   sextafeira: {
     primary: "#fbbf24",
@@ -56,6 +60,79 @@ export const THEMES: Record<Persona, Theme> = {
     name: "SEXTA-FEIRA",
     emoji: "★",
     tagline: "A assistente brasileira mais braba",
+    voicePitch: 1.15,
+  },
+};
+
+// ============================================
+// MODOS DE RACIOCÍNIO
+// ============================================
+export type ReasoningMode = "fast" | "deep" | "creative" | "expert" | "debate" | "roleplay";
+
+export type Mode = {
+  id: ReasoningMode;
+  name: string;
+  emoji: string;
+  desc: string;
+  color: string;
+  systemPrompt: string;
+  temperature: number;
+};
+
+export const MODES: Record<ReasoningMode, Mode> = {
+  fast: {
+    id: "fast",
+    name: "RÁPIDO",
+    emoji: "⚡",
+    desc: "Respostas curtas e diretas",
+    color: "#10b981",
+    systemPrompt: "Modo RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos. Vá direto ao ponto.",
+    temperature: 0.5,
+  },
+  deep: {
+    id: "deep",
+    name: "PROFUNDO",
+    emoji: "🧠",
+    desc: "Raciocínio passo a passo",
+    color: "#8b5cf6",
+    systemPrompt: "Modo PROFUNDO: raciocine passo a passo. Mostre seu pensamento entre [thinking]...[/thinking] ANTES da resposta final. Depois dê a resposta completa e estruturada.",
+    temperature: 0.7,
+  },
+  creative: {
+    id: "creative",
+    name: "CRIATIVO",
+    emoji: "🎨",
+    desc: "Imaginação máxima",
+    color: "#ec4899",
+    systemPrompt: "Modo CRIATIVO: use metáforas vívidas, analogias inesperadas e imaginação fértil. Ouse nas ideias. Traga ângulos que ninguém pensou.",
+    temperature: 1.1,
+  },
+  expert: {
+    id: "expert",
+    name: "EXPERT",
+    emoji: "🔬",
+    desc: "Técnico e preciso",
+    color: "#06b6d4",
+    systemPrompt: "Modo EXPERT: seja técnico, preciso e detalhado. Use terminologia correta. Cite conceitos avançados. Trate o usuário como especialista.",
+    temperature: 0.4,
+  },
+  debate: {
+    id: "debate",
+    name: "DEBATE",
+    emoji: "⚖️",
+    desc: "Argumenta os dois lados",
+    color: "#f59e0b",
+    systemPrompt: "Modo DEBATE: apresente argumentos dos DOIS lados de qualquer questão. Seja equilibrado. No final, dê sua síntese.",
+    temperature: 0.8,
+  },
+  roleplay: {
+    id: "roleplay",
+    name: "ROLEPLAY",
+    emoji: "🎭",
+    desc: "Assume personagens",
+    color: "#ef4444",
+    systemPrompt: "Modo ROLEPLAY: se o usuário pedir, assuma completamente qualquer personagem, personalidade ou cenário. Mantenha a imersão total.",
+    temperature: 1.0,
   },
 };
 
@@ -76,4 +153,14 @@ export function loadPersona(): Persona {
   if (typeof window === "undefined") return "jarvis";
   const saved = localStorage.getItem("jarvis.persona") as Persona;
   return saved && THEMES[saved] ? saved : "jarvis";
+}
+
+export function loadMode(): ReasoningMode {
+  if (typeof window === "undefined") return "deep";
+  const saved = localStorage.getItem("jarvis.mode") as ReasoningMode;
+  return saved && MODES[saved] ? saved : "deep";
+}
+
+export function saveMode(m: ReasoningMode) {
+  localStorage.setItem("jarvis.mode", m);
 }

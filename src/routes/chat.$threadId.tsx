@@ -10,19 +10,25 @@ import { Conversation } from "../components/ai-elements/conversation";
 import { PromptInput } from "../components/ai-elements/prompt-input";
 import { SFX } from "../lib/sfx";
 import { loadSettings } from "../lib/settings";
-import { chatFn } from "../lib/chat.server";
-import { THEMES, applyTheme, loadPersona, type Persona } from "../lib/theme";
+import { chatStreamFn } from "../lib/chat.server";
+import { THEMES, MODES, applyTheme, loadPersona, loadMode, saveMode, type Persona, type ReasoningMode } from "../lib/theme";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string };
 type Fact = { id: string; fact: string; created_at: string };
 
+const PERSONAS_LIST: { id: Persona; label: string; desc: string }[] = [
+  { id: "jarvis", label: "J.A.R.V.I.S.", desc: "Elegante, formal, britânico" },
+  { id: "friday", label: "F.R.I.D.A.Y.", desc: "Jovem, empática, calorosa" },
+  { id: "ultron", label: "ULTRON", desc: "Frio, filosófico, sombrio" },
+  { id: "sextafeira", label: "SEXTA-FEIRA", desc: "Brasileira, informal, direta" },
+];
+
 const FACT_PATTERNS = [
   /(?:meu nome é|me chamo|pode me chamar de)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)/,
   /(?:eu moro em|vivo em|sou de)\s+([^.!?]{2,60})/i,
-  /(?:trabalho com|minha profissão é|minha área é)\s+([^.!?]{3,60})/i,
+  /(?:trabalho com|minha profissão é)\s+([^.!?]{3,60})/i,
   /(?:eu gosto de|adoro|amo|prefiro)\s+([^.!?]{2,60})/i,
-  /(?:eu odeio|detesto|não gosto de)\s+([^.!?]{2,60})/i,
-  /(?:lembre-se que|memorize|anote que|guarde que)\s+([^.!?]{3,80})/i,
+  /(?:lembre-se que|memorize|anote que)\s+([^.!?]{3,80})/i,
 ];
 
 function extractFacts(text: string): string[] {
@@ -43,6 +49,7 @@ export function ChatPage() {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [state, setState] = useState<"idle" | "thinking" | "speaking">("idle");
+  const [streamingText, setStreamingText] = useState("");
   const [listening, setListening] = useState(false);
   const [booted, setBooted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -53,7 +60,9 @@ export function ChatPage() {
   const [wakeMode, setWakeMode] = useState(false);
   const [wakeDetected, setWakeDetected] = useState(false);
   const [persona, setPersona] = useState<Persona>("jarvis");
+  const [mode, setMode] = useState<ReasoningMode>("deep");
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -61,18 +70,17 @@ export function ChatPage() {
   const wakeRecRef = useRef<any>(null);
 
   const theme = THEMES[persona];
+  const currentMode = MODES[mode];
 
-  // Carrega persona salva + aplica tema
   useEffect(() => {
-    const saved = loadPersona();
-    setPersona(saved);
-    applyTheme(saved);
+    const p = loadPersona();
+    setPersona(p);
+    applyTheme(p);
+    const m = loadMode();
+    setMode(m);
   }, []);
 
-  // Aplica tema quando persona muda
-  useEffect(() => {
-    applyTheme(persona);
-  }, [persona]);
+  useEffect(() => { applyTheme(persona); }, [persona]);
 
   useEffect(() => {
     const t = setTimeout(() => setBooted(true), 800);
@@ -99,7 +107,7 @@ export function ChatPage() {
   // Atalhos
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setMemoryOpen(false); setPersonaMenuOpen(false); }
+      if (e.key === "Escape") { setMemoryOpen(false); setPersonaMenuOpen(false); setModeMenuOpen(false); }
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         (async () => {
@@ -109,19 +117,24 @@ export function ChatPage() {
           if (!error && data) navigate({ to: "/chat/$threadId", params: { threadId: data.id } });
         })();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === "m") {
+        e.preventDefault();
+        const order: ReasoningMode[] = ["fast", "deep", "creative", "expert", "debate", "roleplay"];
+        const idx = order.indexOf(mode);
+        const next = order[(idx + 1) % order.length];
+        setMode(next);
+        saveMode(next);
+        SFX.click();
+      }
       if (e.key === "F11") {
         e.preventDefault();
         if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setFullscreen(true); }
         else { document.exitFullscreen(); setFullscreen(false); }
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === "h") {
-        e.preventDefault();
-        navigate({ to: "/" });
-      }
     };
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
-  }, [navigate, user.id]);
+  }, [navigate, user.id, mode]);
 
   useEffect(() => {
     supabase.from("messages").select("*").eq("thread_id", threadId)
@@ -146,9 +159,7 @@ export function ChatPage() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return alert("Reconhecimento de fala não suportado.");
     const rec = new SR();
-    rec.lang = "pt-BR";
-    rec.continuous = true;
-    rec.interimResults = false;
+    rec.lang = "pt-BR"; rec.continuous = true; rec.interimResults = false;
     rec.onresult = (e: any) => {
       const t = e.results[e.results.length - 1][0].transcript.trim();
       if (/jarvis|friday|ultron|sexta/i.test(t)) {
@@ -171,9 +182,7 @@ export function ChatPage() {
     if (!SR) return alert("Reconhecimento de fala não suportado.");
     if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
     const rec = new SR();
-    rec.lang = "pt-BR";
-    rec.continuous = false;
-    rec.interimResults = false;
+    rec.lang = "pt-BR"; rec.continuous = false; rec.interimResults = false;
     rec.onresult = (e: any) => send(e.results[e.results.length - 1][0].transcript);
     rec.onend = () => setListening(false);
     rec.start();
@@ -183,16 +192,17 @@ export function ChatPage() {
   };
 
   const speak = (text: string) => {
+    // Remove thinking antes de falar
+    const clean = text.replace(/\[thinking\][\s\S]*?\[\/thinking\]/gi, "").trim();
     const s = loadSettings();
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter = new SpeechSynthesisUtterance(clean);
     utter.lang = "pt-BR";
     utter.rate = 1.05;
     utter.volume = s.volume;
+    utter.pitch = theme.voicePitch;
     const voices = window.speechSynthesis.getVoices();
     const ptVoice = voices.find((v) => v.lang.startsWith("pt")) ?? voices[0];
     if (ptVoice) utter.voice = ptVoice;
-    if (persona === "friday" || persona === "sextafeira") utter.pitch = 1.2;
-    if (persona === "ultron") utter.pitch = 0.6;
     utter.onstart = () => setState("speaking");
     utter.onend = () => setState("idle");
     window.speechSynthesis.speak(utter);
@@ -223,25 +233,39 @@ export function ChatPage() {
     const next = [...messages, userMsg];
     setMessages(next);
     setState("thinking");
+    setStreamingText("");
     saveLearnedFacts(text);
+
     try {
-      const settings = { ...loadSettings(), persona };
-      const { content } = await chatFn({
-        messages: next.map((m) => ({ role: m.role, content: m.content })),
-        settings,
-        facts: facts.map((f) => f.fact),
-      });
-      const botMsg: Msg = { id: crypto.randomUUID(), role: "assistant", content };
-      setMessages((m) => [...m, botMsg]);
-      SFX.responseDone();
-      speak(content);
-      const title = text.slice(0, 40);
-      await supabase.from("threads")
-        .update({ title, updated_at: new Date().toISOString() })
-        .eq("id", threadId).eq("title", "Nova conversa");
+      const settings = { ...loadSettings(), persona, mode };
+      await chatStreamFn(
+        {
+          messages: next.map((m) => ({ role: m.role, content: m.content })),
+          settings,
+          facts: facts.map((f) => f.fact),
+        },
+        (chunk) => setStreamingText((prev) => prev + chunk),
+        async (fullText) => {
+          setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: fullText }]);
+          setStreamingText("");
+          SFX.responseDone();
+          speak(fullText);
+          const title = text.slice(0, 40);
+          await supabase.from("threads")
+            .update({ title, updated_at: new Date().toISOString() })
+            .eq("id", threadId).eq("title", "Nova conversa");
+        },
+        (err) => {
+          SFX.error();
+          setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err}` }]);
+          setStreamingText("");
+          setState("idle");
+        }
+      );
     } catch (err: any) {
       SFX.error();
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err.message}` }]);
+      setStreamingText("");
       setState("idle");
     }
   };
@@ -261,14 +285,9 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
-      <MemoryPanel
-        open={memoryOpen}
-        onClose={() => setMemoryOpen(false)}
-        facts={facts}
-        onFactsChange={setFacts}
-        userId={user?.id ?? ""}
-      />
+      <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} facts={facts} onFactsChange={setFacts} userId={user?.id ?? ""} />
 
+      {/* Learned indicator */}
       <AnimatePresence>
         {learnedIndicator && (
           <motion.div key="learned" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
@@ -288,6 +307,7 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
+      {/* Wake detected */}
       <AnimatePresence>
         {wakeDetected && (
           <motion.div key="wake" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 2 }}
@@ -300,6 +320,7 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
+      {/* Cantos HUD */}
       {booted && (
         <>
           <div className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
@@ -309,17 +330,13 @@ export function ChatPage() {
         </>
       )}
 
-      <motion.div
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-colors duration-700"
-        style={{
-          width: "80vmin", height: "80vmin",
-          background: `radial-gradient(circle, ${theme.bg} 0%, transparent 60%)`,
-          filter: "blur(50px)", zIndex: 0,
-        }}
+      {/* Aura */}
+      <motion.div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-colors duration-700"
+        style={{ width: "80vmin", height: "80vmin", background: `radial-gradient(circle, ${theme.bg} 0%, transparent 60%)`, filter: "blur(50px)", zIndex: 0 }}
         animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.9, 0.4] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-      />
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} />
 
+      {/* Boot */}
       <AnimatePresence>
         {!booted && (
           <motion.div key="boot" initial={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -330,13 +347,14 @@ export function ChatPage() {
                 {theme.name}
               </div>
               <div className="text-[10px] text-slate-400 tracking-[0.4em] mt-2 font-mono">
-                CARREGANDO MÓDULOS NEURAIS...
+                CARREGANDO {currentMode.name}...
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* HUD lateral */}
       {booted && (
         <>
           <div className="absolute top-28 left-6 space-y-3 z-20 hidden lg:block">
@@ -360,16 +378,15 @@ export function ChatPage() {
                 <motion.div key={i} className="w-1 rounded-full"
                   style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }}
                   animate={{ height: [`${15 + Math.random() * 40}%`, `${40 + Math.random() * 60}%`, `${20 + Math.random() * 50}%`, `${50 + Math.random() * 50}%`] }}
-                  transition={{ duration: 0.4 + Math.random() * 0.3, repeat: Infinity, delay: i * 0.03 }}
-                />
+                  transition={{ duration: 0.4 + Math.random() * 0.3, repeat: Infinity, delay: i * 0.03 }} />
               ))}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <motion.header
-        initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, delay: 0.3 }}
+      {/* Header */}
+      <motion.header initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, delay: 0.3 }}
         className="relative z-10 p-4 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
         style={{ borderColor: `${theme.primary}33` }}>
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-4 flex-wrap">
@@ -381,37 +398,75 @@ export function ChatPage() {
             }}
             className="flex items-center gap-3 font-orbitron tracking-widest transition"
             style={{ color: theme.primary, textShadow: `0 0 10px ${theme.primary}` }}>
-            <span className="text-lg">◄</span>
-            <span>VOLTAR</span>
+            <span className="text-lg">◄</span><span>VOLTAR</span>
           </motion.button>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Persona dropdown */}
+            {/* PERSONA */}
             <div className="relative">
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                onClick={() => { setPersonaMenuOpen((v) => !v); SFX.click(); }}
+                onClick={() => { setPersonaMenuOpen((v) => !v); setModeMenuOpen(false); SFX.click(); }}
                 className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-2"
-                style={{
-                  borderColor: `${theme.primary}88`,
-                  color: theme.primary,
-                  background: theme.bg,
-                  boxShadow: `0 0 15px ${theme.glow}`,
-                }}>
+                style={{ borderColor: `${theme.primary}88`, color: theme.primary, background: theme.bg, boxShadow: `0 0 15px ${theme.glow}` }}>
                 {theme.emoji} {theme.name}
+                <motion.span animate={{ rotate: personaMenuOpen ? 180 : 0 }} className="text-[8px]">▼</motion.span>
               </motion.button>
               <AnimatePresence>
                 {personaMenuOpen && (
                   <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full mt-2 right-0 z-[100] bg-slate-950/95 border border-cyan-500/30 rounded-lg p-2 min-w-[220px] backdrop-blur-xl shadow-2xl">
-                    {Object.values(THEMES).map((t) => (
-                      <button key={t.name}
-                        onClick={() => { setPersona(t.name === "J.A.R.V.I.S." ? "jarvis" : t.name === "F.R.I.D.A.Y." ? "friday" : t.name === "U.L.T.R.O.N." ? "ultron" : "sextafeira"); setPersonaMenuOpen(false); SFX.click(); }}
-                        className="w-full text-left px-3 py-2 rounded text-xs font-mono tracking-widest transition flex items-center gap-2 hover:bg-slate-800/60"
-                        style={{ color: t.primary }}>
-                        <span>{t.emoji}</span>
-                        <span>{t.name}</span>
-                      </button>
-                    ))}
+                    className="absolute top-full mt-2 right-0 z-[100] bg-slate-950/95 border border-cyan-500/30 rounded-lg p-2 min-w-[240px] backdrop-blur-xl shadow-2xl">
+                    <div className="text-[9px] tracking-widest text-slate-500 font-mono px-3 py-1 mb-1">▸ PERSONA</div>
+                    {PERSONAS_LIST.map((p) => {
+                      const pT = THEMES[p.id]; const active = persona === p.id;
+                      return (
+                        <button key={p.id}
+                          onClick={() => { setPersona(p.id); setPersonaMenuOpen(false); SFX.responseDone(); }}
+                          className={`w-full text-left px-3 py-2 rounded transition flex items-start gap-3 mb-1 ${active ? "bg-slate-800/80" : "hover:bg-slate-800/60"}`}
+                          style={{ borderLeft: active ? `3px solid ${pT.primary}` : "3px solid transparent" }}>
+                          <span className="text-lg" style={{ color: pT.primary }}>{pT.emoji}</span>
+                          <div className="flex-1">
+                            <div className="text-xs font-bold tracking-widest" style={{ color: pT.primary }}>{p.label}</div>
+                            <div className="text-[9px] text-slate-500 mt-0.5">{p.desc}</div>
+                          </div>
+                          {active && <span className="text-[10px]" style={{ color: pT.primary }}>●</span>}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* MODO */}
+            <div className="relative">
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                onClick={() => { setModeMenuOpen((v) => !v); setPersonaMenuOpen(false); SFX.click(); }}
+                className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-2"
+                style={{ borderColor: `${currentMode.color}88`, color: currentMode.color, background: `${currentMode.color}11` }}>
+                {currentMode.emoji} {currentMode.name}
+                <motion.span animate={{ rotate: modeMenuOpen ? 180 : 0 }} className="text-[8px]">▼</motion.span>
+              </motion.button>
+              <AnimatePresence>
+                {modeMenuOpen && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full mt-2 right-0 z-[100] bg-slate-950/95 border border-cyan-500/30 rounded-lg p-2 min-w-[240px] backdrop-blur-xl shadow-2xl">
+                    <div className="text-[9px] tracking-widest text-slate-500 font-mono px-3 py-1 mb-1">▸ MODO DE RACIOCÍNIO</div>
+                    {Object.values(MODES).map((m) => {
+                      const active = mode === m.id;
+                      return (
+                        <button key={m.id}
+                          onClick={() => { setMode(m.id); saveMode(m.id); setModeMenuOpen(false); SFX.responseDone(); }}
+                          className={`w-full text-left px-3 py-2 rounded transition flex items-start gap-3 mb-1 ${active ? "bg-slate-800/80" : "hover:bg-slate-800/60"}`}
+                          style={{ borderLeft: active ? `3px solid ${m.color}` : "3px solid transparent" }}>
+                          <span className="text-lg" style={{ color: m.color }}>{m.emoji}</span>
+                          <div className="flex-1">
+                            <div className="text-xs font-bold tracking-widest" style={{ color: m.color }}>{m.name}</div>
+                            <div className="text-[9px] text-slate-500 mt-0.5">{m.desc}</div>
+                          </div>
+                          {active && <span className="text-[10px]" style={{ color: m.color }}>●</span>}
+                        </button>
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -419,21 +474,13 @@ export function ChatPage() {
 
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={toggleAmbient}
               className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition"
-              style={{
-                borderColor: ambientOn ? theme.primary : `${theme.primary}55`,
-                color: theme.primary,
-                background: ambientOn ? theme.bg : "transparent",
-              }}>
+              style={{ borderColor: ambientOn ? theme.primary : `${theme.primary}55`, color: theme.primary, background: ambientOn ? theme.bg : "transparent" }}>
               {ambientOn ? "🔊" : "🔇"}
             </motion.button>
 
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={toggleWakeMode}
               className={`px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-1.5 ${wakeMode ? "animate-pulse" : ""}`}
-              style={{
-                borderColor: wakeMode ? "#ef4444" : `${theme.primary}55`,
-                color: wakeMode ? "#ef4444" : theme.primary,
-                background: wakeMode ? "rgba(239,68,68,0.1)" : "transparent",
-              }}>
+              style={{ borderColor: wakeMode ? "#ef4444" : `${theme.primary}55`, color: wakeMode ? "#ef4444" : theme.primary, background: wakeMode ? "rgba(239,68,68,0.1)" : "transparent" }}>
               <span className={`w-1.5 h-1.5 rounded-full ${wakeMode ? "bg-red-400" : "bg-slate-600"}`} />
               {wakeMode ? "WAKE" : "OFF"}
             </motion.button>
@@ -457,8 +504,7 @@ export function ChatPage() {
             </motion.button>
 
             <div className="flex items-center gap-3 text-[10px] tracking-widest text-slate-500 font-mono px-2">
-              <motion.span animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }}
-                className="flex items-center gap-1.5">
+              <motion.span animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
                 <span className="text-emerald-300 hidden md:inline">ONLINE</span>
               </motion.span>
@@ -469,8 +515,7 @@ export function ChatPage() {
 
       {wakeMode && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 text-center py-2">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border"
-            style={{ background: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.3)" }}>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border" style={{ background: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.3)" }}>
             <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 1.5, repeat: Infinity }}
               className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_#ef4444]" />
             <span className="font-orbitron text-[10px] tracking-[0.4em] text-red-300">
@@ -480,13 +525,12 @@ export function ChatPage() {
         </motion.div>
       )}
 
-      <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1, delay: 0.5 }} className="py-8 relative z-10">
+      <motion.div initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, delay: 0.5 }} className="py-8 relative z-10">
         <ArcReactor state={state} color={theme.primary} />
       </motion.div>
 
       <AnimatePresence mode="wait">
-        {state === "thinking" && (
+        {state === "thinking" && !streamingText && (
           <motion.div key="thinking" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="text-center relative z-10 -mt-6 mb-2">
             <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full border backdrop-blur-sm"
@@ -499,7 +543,7 @@ export function ChatPage() {
                 ))}
               </div>
               <span className="font-orbitron text-[10px] tracking-[0.3em]" style={{ color: theme.primary }}>
-                PROCESSANDO {elapsed.toFixed(1)}s
+                {currentMode.emoji} {currentMode.name} · {elapsed.toFixed(1)}s
               </span>
             </div>
           </motion.div>
@@ -507,20 +551,13 @@ export function ChatPage() {
       </AnimatePresence>
 
       <main className="flex-1 overflow-y-auto pb-4 relative z-10">
-        <Conversation messages={messages} />
+        <Conversation messages={messages} streamingText={streamingText} />
       </main>
 
       <motion.footer initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6, delay: 0.7 }}
         className="p-4 border-t backdrop-blur-xl bg-slate-950/40 relative z-10 transition-colors duration-700"
         style={{ borderColor: `${theme.primary}33` }}>
-        <PromptInput
-          onSend={send}
-          listening={listening}
-          onToggleMic={toggleListening}
-          disabled={state === "thinking"}
-          onHistory={navigateHistory}
-          primaryColor={theme.primary}
-        />
+        <PromptInput onSend={send} listening={listening} onToggleMic={toggleListening} disabled={state === "thinking"} onHistory={navigateHistory} primaryColor={theme.primary} />
       </motion.footer>
     </div>
   );
