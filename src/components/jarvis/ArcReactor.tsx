@@ -1,308 +1,285 @@
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 type State = "idle" | "thinking" | "speaking";
 
+type Particle = {
+  angle: number;
+  radius: number;
+  speed: number;
+  size: number;
+  color: string;
+  life: number;
+  maxLife: number;
+};
+
+type Spark = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+};
+
 export function ArcReactor({ state }: { state: State }) {
-  const isActive = state !== "idle";
-  const isSpeaking = state === "speaking";
-  const isThinking = state === "thinking";
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stateRef = useRef(state);
+  const [mounted, setMounted] = useState(false);
 
-  // Cores douradas/âmbar
-  const coreColor = isSpeaking ? "#fcd34d" : isThinking ? "#fbbf24" : "#f59e0b";
-  const accentColor = "#ea580c";
-  const brightColor = "#fde68a";
-  const darkColor = "#7c2d12";
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
-  const spinSpeed = isSpeaking ? 4 : isThinking ? 6 : 15;
-  const pulseSpeed = isSpeaking ? 0.6 : isThinking ? 1 : 2.5;
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 100);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Tamanho em alta resolução
+    const size = 700;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+    ctx.scale(dpr, dpr);
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const baseRadius = size * 0.32;
+
+    const particles: Particle[] = [];
+    const sparks: Spark[] = [];
+
+    // Cria 300 partículas orbitando em camadas
+    for (let i = 0; i < 300; i++) {
+      const layer = Math.floor(Math.random() * 4);
+      const radiusFactor = 0.5 + layer * 0.18 + Math.random() * 0.15;
+      particles.push({
+        angle: Math.random() * Math.PI * 2,
+        radius: baseRadius * radiusFactor,
+        speed: (Math.random() * 0.01 + 0.002) * (Math.random() > 0.5 ? 1 : -1),
+        size: Math.random() * 2.5 + 0.8,
+        color: Math.random() > 0.7 ? "#fde68a" : Math.random() > 0.4 ? "#fbbf24" : "#f59e0b",
+        life: Math.random() * 100,
+        maxLife: 100,
+      });
+    }
+
+    // Cria sparks (explosões de energia)
+    const spawnSpark = () => {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = baseRadius * (0.4 + Math.random() * 0.6);
+      sparks.push({
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
+        vx: Math.cos(angle) * (Math.random() * 2 + 0.5),
+        vy: Math.sin(angle) * (Math.random() * 2 + 0.5),
+        life: 60,
+        maxLife: 60,
+        size: Math.random() * 2 + 1,
+      });
+    };
+
+    let animId: number;
+    let frame = 0;
+
+    const draw = () => {
+      const s = stateRef.current;
+      const isActive = s !== "idle";
+      const isSpeaking = s === "speaking";
+      const isThinking = s === "thinking";
+
+      // Trail de fundo (cria efeito de arrasto)
+      ctx.fillStyle = "rgba(2, 6, 23, 0.25)";
+      ctx.fillRect(0, 0, size, size);
+
+      const coreColor = isSpeaking ? "#fcd34d" : isThinking ? "#fbbf24" : "#f59e0b";
+      const intensity = isSpeaking ? 1.5 : isThinking ? 1.2 : 0.8;
+
+      // === CORE CENTRAL ===
+      // Glow massivo
+      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 1.5);
+      coreGrad.addColorStop(0, `rgba(253, 230, 138, ${0.9 * intensity})`);
+      coreGrad.addColorStop(0.2, `rgba(252, 211, 77, ${0.7 * intensity})`);
+      coreGrad.addColorStop(0.5, `rgba(245, 158, 11, ${0.3 * intensity})`);
+      coreGrad.addColorStop(1, "rgba(124, 45, 18, 0)");
+      ctx.fillStyle = coreGrad;
+      ctx.fillRect(0, 0, size, size);
+
+      // Núcleo brilhante
+      const corePulse = 1 + Math.sin(frame * 0.05) * 0.1;
+      const innerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60 * corePulse);
+      innerGrad.addColorStop(0, `rgba(255, 255, 255, ${0.95 * intensity})`);
+      innerGrad.addColorStop(0.3, `rgba(253, 230, 138, ${0.9 * intensity})`);
+      innerGrad.addColorStop(0.7, `rgba(251, 191, 36, ${0.6 * intensity})`);
+      innerGrad.addColorStop(1, "rgba(245, 158, 11, 0)");
+      ctx.fillStyle = innerGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 80 * corePulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // === ANÉIS DE ENERGIA (arcos) ===
+      const ringCount = 5;
+      for (let i = 0; i < ringCount; i++) {
+        const r = baseRadius * (0.4 + i * 0.15) * corePulse;
+        const rot = frame * (0.005 + i * 0.003) * (i % 2 === 0 ? 1 : -1);
+        const dashCount = 12 + i * 6;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+        ctx.strokeStyle = `rgba(${i % 2 === 0 ? "252, 211, 77" : "245, 158, 11"}, ${0.5 - i * 0.05})`;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([15 + i * 5, 8 + i * 2]);
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // === PARTÍCULAS ===
+      particles.forEach((p) => {
+        p.angle += p.speed * (isActive ? 2 : 1);
+        p.life += 1;
+
+        const x = cx + Math.cos(p.angle) * p.radius;
+        const y = cy + Math.sin(p.angle) * p.radius;
+
+        const alpha = Math.min(1, p.life / 20) * (0.6 + Math.random() * 0.4);
+        const size = p.size * (0.8 + Math.random() * 0.4);
+
+        // Glow
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, size * 6);
+        grad.addColorStop(0, p.color);
+        grad.addColorStop(0.4, p.color + "88");
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, size * 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core do ponto
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Reset quando sai muito longe
+        if (p.radius > baseRadius * 1.6) p.radius = baseRadius * 0.5;
+        if (p.radius < baseRadius * 0.4) p.radius = baseRadius * 1.5;
+      });
+
+      // === SPARKS ===
+      if (isActive && frame % 3 === 0) spawnSpark();
+      sparks.forEach((sp, idx) => {
+        sp.x += sp.vx;
+        sp.y += sp.vy;
+        sp.vx *= 0.97;
+        sp.vy *= 0.97;
+        sp.life -= 1;
+
+        const alpha = sp.life / sp.maxLife;
+        if (alpha > 0) {
+          ctx.fillStyle = `rgba(253, 230, 138, ${alpha})`;
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = "#fbbf24";
+          ctx.beginPath();
+          ctx.arc(sp.x, sp.y, sp.size * alpha, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          sparks.splice(idx, 1);
+        }
+      });
+
+      // === FEIXES RADIAIS (quando ativo) ===
+      if (isActive) {
+        const beamCount = isSpeaking ? 12 : 6;
+        for (let i = 0; i < beamCount; i++) {
+          const angle = (i / beamCount) * Math.PI * 2 + frame * 0.02;
+          const beamAlpha = Math.max(0, Math.sin(frame * 0.1 + i) * 0.5 + 0.5);
+          const x1 = cx + Math.cos(angle) * baseRadius * 0.3;
+          const y1 = cy + Math.sin(angle) * baseRadius * 0.3;
+          const x2 = cx + Math.cos(angle) * baseRadius * 1.8;
+          const y2 = cy + Math.sin(angle) * baseRadius * 1.8;
+
+          const beamGrad = ctx.createLinearGradient(x1, y1, x2, y2);
+          beamGrad.addColorStop(0, `rgba(253, 230, 138, ${beamAlpha * 0.8})`);
+          beamGrad.addColorStop(1, "rgba(245, 158, 11, 0)");
+          ctx.strokeStyle = beamGrad;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+      }
+
+      frame++;
+      animId = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animId);
+    };
+  }, []);
 
   return (
-    <div className="relative w-96 h-96 mx-auto" style={{ perspective: 1000 }}>
-      {/* === AURA EXTERNA MASSIVA === */}
-      <motion.div
-        className="absolute -inset-32 rounded-full"
-        style={{
-          background: `radial-gradient(circle, ${accentColor}40 0%, ${coreColor}20 40%, transparent 70%)`,
-          filter: "blur(40px)",
-        }}
-        animate={{
-          opacity: isActive ? [0.4, 0.9, 0.4] : [0.2, 0.5, 0.2],
-          scale: [1, 1.15, 1],
-        }}
-        transition={{ duration: pulseSpeed, repeat: Infinity }}
+    <div className="relative w-[700px] h-[700px] mx-auto flex items-center justify-center">
+      {/* Canvas principal */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0"
+        style={{ filter: "blur(0.5px)" }}
       />
 
-      {/* === ONDAS DE ENERGIA EXPANDINDO === */}
-      {[0, 1, 2, 3, 4].map((i) => (
+      {/* Core DOM overlay (ponto de luz central) */}
+      <motion.div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          width: 40,
+          height: 40,
+          background: "#ffffff",
+          boxShadow:
+            "0 0 40px #fde68a, 0 0 80px #fbbf24, 0 0 120px #f59e0b, 0 0 200px #ea580c",
+        }}
+        animate={{
+          scale: state === "speaking" ? [1, 1.5, 1] : state === "thinking" ? [1, 1.2, 1] : [1, 1.05, 1],
+          opacity: [0.85, 1, 0.85],
+        }}
+        transition={{
+          duration: state === "speaking" ? 0.5 : state === "thinking" ? 0.8 : 2,
+          repeat: Infinity,
+        }}
+      />
+
+      {/* Texto de status */}
+      <div className="absolute bottom-32 left-1/2 -translate-x-1/2 text-center pointer-events-none">
         <motion.div
-          key={`wave-${i}`}
-          className="absolute inset-0 rounded-full"
+          className="font-orbitron text-sm tracking-[0.5em]"
           style={{
-            border: `1.5px solid ${coreColor}`,
-            boxShadow: `0 0 20px ${coreColor}60, inset 0 0 20px ${coreColor}30`,
+            color: "#fde68a",
+            textShadow: "0 0 10px #fbbf24, 0 0 20px #f59e0b, 0 0 30px #ea580c",
           }}
-          animate={{
-            scale: [0.6, 2.2],
-            opacity: [0.7, 0],
-          }}
-          transition={{
-            duration: isSpeaking ? 2 : 3.5,
-            repeat: Infinity,
-            delay: i * 0.6,
-            ease: "easeOut",
-          }}
-        />
-      ))}
-
-      {/* === CAMADA 1: 60 PARTÍCULAS ORBITANDO LONGE === */}
-      {Array.from({ length: 60 }).map((_, i) => {
-        const angle = (i * 360) / 60;
-        const radius = 155 + (i % 4) * 8;
-        const duration = 12 + (i % 6) * 2;
-        const size = i % 7 === 0 ? "w-2 h-2" : i % 3 === 0 ? "w-1.5 h-1.5" : "w-1 h-1";
-        const color = i % 5 === 0 ? brightColor : i % 3 === 0 ? coreColor : accentColor;
-        const reverse = i % 2 === 0;
-        return (
-          <motion.div
-            key={`far-${i}`}
-            className="absolute top-1/2 left-1/2"
-            style={{ marginTop: -2, marginLeft: -2 }}
-            animate={{
-              rotate: reverse ? -360 : 360,
-            }}
-            transition={{ duration, repeat: Infinity, ease: "linear" }}
-          >
-            <div
-              className={`${size} rounded-full`}
-              style={{
-                transform: `translateX(${radius}px)`,
-                background: color,
-                boxShadow: `0 0 8px ${color}, 0 0 16px ${color}80`,
-              }}
-            />
-          </motion.div>
-        );
-      })}
-
-      {/* === CAMADA 2: 30 PARTÍCULAS PRÓXIMAS === */}
-      {Array.from({ length: 30 }).map((_, i) => {
-        const angle = (i * 360) / 30;
-        const radius = 105 + (i % 3) * 12;
-        const duration = 6 + (i % 5) * 1.2;
-        const size = i % 4 === 0 ? "w-2 h-2" : "w-1 h-1";
-        const color = i % 3 === 0 ? brightColor : coreColor;
-        const reverse = i % 3 === 0;
-        return (
-          <motion.div
-            key={`near-${i}`}
-            className="absolute top-1/2 left-1/2"
-            style={{ marginTop: -2, marginLeft: -2 }}
-            animate={{ rotate: reverse ? -360 : 360 }}
-            transition={{ duration, repeat: Infinity, ease: "linear" }}
-          >
-            <div
-              className={`${size} rounded-full`}
-              style={{
-                transform: `translateX(${radius}px)`,
-                background: color,
-                boxShadow: `0 0 10px ${color}`,
-              }}
-            />
-          </motion.div>
-        );
-      })}
-
-      {/* === SVG COM ANÉIS E ARCS === */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 384 384">
-        <defs>
-          <radialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={brightColor} stopOpacity="1" />
-            <stop offset="40%" stopColor={coreColor} stopOpacity="0.9" />
-            <stop offset="100%" stopColor={accentColor} stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="ringGradGold" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={brightColor} />
-            <stop offset="50%" stopColor={coreColor} />
-            <stop offset="100%" stopColor={accentColor} />
-          </linearGradient>
-        </defs>
-
-        {/* Anel externo girando */}
-        <motion.circle
-          cx="192" cy="192" r="175"
-          fill="none"
-          stroke="url(#ringGradGold)"
-          strokeWidth="1.5"
-          strokeDasharray="15 8 40 8"
-          opacity="0.7"
-          animate={{ rotate: 360 }}
-          transition={{ duration: spinSpeed * 4, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "192px 192px" }}
-        />
-
-        {/* Anel tracejado fino */}
-        <motion.circle
-          cx="192" cy="192" r="158"
-          fill="none"
-          stroke={coreColor}
-          strokeWidth="1"
-          strokeDasharray="2 10"
-          opacity="0.5"
-          animate={{ rotate: -360 }}
-          transition={{ duration: spinSpeed * 3, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "192px 192px" }}
-        />
-
-        {/* Marcadores radiais (48) */}
-        {Array.from({ length: 48 }).map((_, i) => {
-          const angle = (i * 360) / 48;
-          const rad = (angle * Math.PI) / 180;
-          const inner = i % 6 === 0 ? 138 : 148;
-          const outer = 155;
-          const x1 = 192 + Math.cos(rad) * inner;
-          const y1 = 192 + Math.sin(rad) * inner;
-          const x2 = 192 + Math.cos(rad) * outer;
-          const y2 = 192 + Math.sin(rad) * outer;
-          return (
-            <line
-              key={i}
-              x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={coreColor}
-              strokeWidth={i % 6 === 0 ? 2 : 1}
-              opacity={i % 6 === 0 ? 0.9 : 0.35}
-            />
-          );
-        })}
-
-        {/* Arcs curtos brilhantes girando */}
-        <motion.circle
-          cx="192" cy="192" r="128"
-          fill="none"
-          stroke={brightColor}
-          strokeWidth="3"
-          strokeDasharray="25 220"
-          strokeLinecap="round"
-          animate={{ rotate: 360 }}
-          transition={{ duration: spinSpeed * 2, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "192px 192px", filter: `drop-shadow(0 0 6px ${brightColor})` }}
-        />
-
-        <motion.circle
-          cx="192" cy="192" r="115"
-          fill="none"
-          stroke={accentColor}
-          strokeWidth="2"
-          strokeDasharray="40 200"
-          strokeLinecap="round"
-          animate={{ rotate: -360 }}
-          transition={{ duration: spinSpeed * 1.5, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "192px 192px", filter: `drop-shadow(0 0 4px ${accentColor})` }}
-        />
-
-        <motion.circle
-          cx="192" cy="192" r="100"
-          fill="none"
-          stroke={coreColor}
-          strokeWidth="1.5"
-          strokeDasharray="8 20"
-          opacity="0.7"
-          animate={{ rotate: 360 }}
-          transition={{ duration: spinSpeed * 1.2, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "192px 192px" }}
-        />
-      </svg>
-
-      {/* === NÚCLEO CENTRAL === */}
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{
-          width: 130,
-          height: 130,
-          background: `radial-gradient(circle, ${brightColor} 0%, ${coreColor} 30%, ${accentColor} 60%, transparent 85%)`,
-          filter: "blur(2px)",
-        }}
-        animate={{
-          scale: isSpeaking ? [1, 1.15, 1] : isThinking ? [1, 1.08, 1] : [1, 1.04, 1],
-          opacity: [0.9, 1, 0.9],
-        }}
-        transition={{ duration: pulseSpeed, repeat: Infinity }}
-      />
-
-      {/* === NÚCLEO INTERNO (ponto de luz) === */}
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{
-          width: 60,
-          height: 60,
-          background: brightColor,
-          boxShadow: `0 0 60px ${brightColor}, 0 0 100px ${coreColor}, 0 0 150px ${accentColor}`,
-        }}
-        animate={{
-          scale: [1, 1.3, 1],
-          opacity: [0.8, 1, 0.8],
-        }}
-        transition={{ duration: pulseSpeed, repeat: Infinity }}
-      />
-
-      {/* === STATUS TEXT === */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-24 text-center pointer-events-none">
-        <motion.div
-          className="font-orbitron text-sm tracking-[0.4em]"
-          style={{
-            color: brightColor,
-            textShadow: `0 0 10px ${coreColor}, 0 0 20px ${accentColor}`,
-          }}
-          animate={{ opacity: [0.7, 1, 0.7] }}
+          animate={{ opacity: [0.6, 1, 0.6] }}
           transition={{ duration: 1.5, repeat: Infinity }}
         >
           {state === "idle" ? "STANDBY" : state === "thinking" ? "PROCESSING" : "SPEAKING"}
         </motion.div>
-        <div className="text-[9px] text-amber-200/50 mt-1 font-mono tracking-widest">
+        <div className="text-[9px] text-amber-200/40 mt-1 font-mono tracking-widest">
           v2.0.4
         </div>
       </div>
-
-      {/* === FEIXES DE ENERGIA RADIAIS (quando ativo) === */}
-      {isActive && (
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 384 384">
-          {Array.from({ length: 8 }).map((_, i) => {
-            const angle = (i * 360) / 8 + Math.random() * 20;
-            const rad = (angle * Math.PI) / 180;
-            const x2 = 192 + Math.cos(rad) * 200;
-            const y2 = 192 + Math.sin(rad) * 200;
-            return (
-              <motion.line
-                key={`beam-${i}`}
-                x1="192" y1="192"
-                x2={x2} y2={y2}
-                stroke={coreColor}
-                strokeWidth="1"
-                strokeLinecap="round"
-                animate={{ opacity: [0, 0.6, 0] }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  delay: i * 0.25,
-                }}
-                style={{ filter: `drop-shadow(0 0 4px ${coreColor})` }}
-              />
-            );
-          })}
-        </svg>
-      )}
-
-      {/* === MARCADOR DE ESTADO EXTRA === */}
-      {isSpeaking && (
-        <motion.div
-          className="absolute inset-0 rounded-full pointer-events-none"
-          style={{
-            border: `3px solid ${brightColor}`,
-            boxShadow: `0 0 40px ${brightColor}, inset 0 0 40px ${brightColor}40`,
-          }}
-          animate={{ scale: [1, 1.08, 1], opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 0.6, repeat: Infinity }}
-        />
-      )}
     </div>
   );
 }
