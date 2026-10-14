@@ -1,98 +1,87 @@
-@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================
-   VARIÁVEIS
-   ============================================ */
 :root {
-  --jarvis-red: #ef4444;
-  --jarvis-gold: #fbbf24;
   --jarvis-cyan: #22d3ee;
-  --jarvis-purple: #a855f7;
-  --jarvis-bg: #020617;
+  --jarvis-blue: #0ea5e9;
+  --jarvis-dark: #020617;
 }
 
-html, body, #root { height: 100%; }
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
 
-/* ============================================
-   FUNDO — GRADIENTE ANIMADO + GRID PERSPECTIVA
-   ============================================ */
 body {
-  background:
-    radial-gradient(ellipse at 20% 0%, rgba(239, 68, 68, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(34, 211, 238, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, #0b1220 0%, #020617 70%);
+  background: radial-gradient(ellipse at 50% 0%, #0a1929 0%, #051020 40%, #010509 80%);
   color: #e2e8f0;
   font-family: "Inter", system-ui, sans-serif;
-  margin: 0;
   overflow-x: hidden;
   min-height: 100vh;
-  position: relative;
 }
 
-/* Grid HUD em perspectiva (tipo chão de nave) */
+/* Grid de pontos animado */
 body::before {
   content: "";
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60vh;
-  background-image:
-    linear-gradient(rgba(34, 211, 238, 0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.15) 1px, transparent 1px);
-  background-size: 60px 60px;
-  transform: perspective(400px) rotateX(60deg);
-  transform-origin: bottom;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(34, 211, 238, 0.25) 1px, transparent 1px);
+  background-size: 30px 30px;
   pointer-events: none;
   z-index: 0;
-  mask-image: linear-gradient(to top, black 30%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to top, black 30%, transparent 100%);
-  animation: gridPerspective 8s linear infinite;
-  opacity: 0.7;
+  animation: dotPulse 5s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse at center, black 15%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 15%, transparent 75%);
 }
 
-@keyframes gridPerspective {
-  0% { background-position: 0 0; }
-  100% { background-position: 0 60px; }
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.6; }
 }
 
-/* Vinheta cinematográfica */
+/* Aura central respirando */
 body::after {
   content: "";
   position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
+  top: 50%;
+  left: 50%;
+  width: 80vmin;
+  height: 80vmin;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.12) 0%, transparent 60%);
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
+  filter: blur(30px);
+  animation: breathe 8s ease-in-out infinite;
 }
 
-/* ============================================
-   SCANLINE ANIMADA (linha de varredura)
-   ============================================ */
+@keyframes breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+  50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+}
+
+/* Tipografia */
+.font-orbitron {
+  font-family: "Orbitron", sans-serif;
+  letter-spacing: 0.15em;
+}
+
+/* Scanline ciano */
 .scanline {
   position: fixed;
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--jarvis-cyan),
-    var(--jarvis-gold),
-    var(--jarvis-cyan),
-    transparent
-  );
-  opacity: 0.6;
-  animation: scanlineMove 5s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.9), transparent);
+  opacity: 0.5;
+  animation: scanlineMove 8s linear infinite;
   pointer-events: none;
   z-index: 100;
-  filter: blur(0.5px);
-  box-shadow: 0 0 20px var(--jarvis-cyan);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.8);
 }
 
 @keyframes scanlineMove {
@@ -100,41 +89,7 @@ body::after {
   100% { top: 100vh; }
 }
 
-/* Ruído de TV (film grain) */
-.noise::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.03;
-  pointer-events: none;
-  z-index: 2;
-  animation: noiseShift 0.5s steps(3) infinite;
-}
-
-@keyframes noiseShift {
-  0% { transform: translate(0, 0); }
-  33% { transform: translate(-2px, 1px); }
-  66% { transform: translate(1px, -1px); }
-  100% { transform: translate(0, 0); }
-}
-
-/* ============================================
-   FONTES
-   ============================================ */
-.font-orbitron {
-  font-family: "Orbitron", sans-serif;
-  letter-spacing: 0.15em;
-}
-
-.font-mono-tech {
-  font-family: "Share Tech Mono", "Courier New", monospace;
-  letter-spacing: 0.05em;
-}
-
-/* ============================================
-   CANTOS HUD DUPLOS (dois tamanhos)
-   ============================================ */
+/* Cantos HUD */
 .hud-corner {
   position: relative;
 }
@@ -146,110 +101,29 @@ body::after {
   width: 16px;
   height: 16px;
   border: 2px solid var(--jarvis-cyan);
-  box-shadow: 0 0 8px var(--jarvis-cyan);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
 }
 
 .hud-corner::before {
-  top: -2px;
-  left: -2px;
-  border-right: 0;
-  border-bottom: 0;
+  top: -1px; left: -1px;
+  border-right: 0; border-bottom: 0;
 }
 
 .hud-corner::after {
-  bottom: -2px;
-  right: -2px;
-  border-left: 0;
-  border-top: 0;
+  bottom: -1px; right: -1px;
+  border-left: 0; border-top: 0;
 }
 
-/* Cantos maiores externos */
-.hud-frame {
-  position: relative;
-}
-
-.hud-frame::before,
-.hud-frame::after {
-  content: "";
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  border: 1px solid rgba(251, 191, 36, 0.6);
-}
-
-.hud-frame::before {
-  top: -6px;
-  left: -6px;
-  border-right: 0;
-  border-bottom: 0;
-}
-
-.hud-frame::after {
-  bottom: -6px;
-  right: -6px;
-  border-left: 0;
-  border-top: 0;
-}
-
-/* ============================================
-   GLOW / TEXT EFFECTS
-   ============================================ */
-.glow-text {
-  text-shadow:
-    0 0 4px currentColor,
-    0 0 12px currentColor,
-    0 0 24px currentColor;
-}
-
-.glow-soft {
-  text-shadow:
-    0 0 6px currentColor,
-    0 0 12px rgba(255, 255, 255, 0.1);
-}
-
-/* Texto com gradiente */
-.text-gradient {
-  background: linear-gradient(135deg, var(--jarvis-red) 0%, var(--jarvis-gold) 50%, var(--jarvis-cyan) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  background-size: 200% 200%;
-  animation: gradientShift 4s ease infinite;
-}
-
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-/* ============================================
-   SCROLLBAR STARK
-   ============================================ */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
-  border-radius: 5px;
-}
-
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #051020; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--jarvis-red), var(--jarvis-gold));
-  border-radius: 5px;
-  border: 2px solid rgba(15, 23, 42, 0.5);
+  background: linear-gradient(180deg, #22d3ee, #0ea5e9);
+  border-radius: 4px;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, var(--jarvis-gold), var(--jarvis-red));
-  box-shadow: 0 0 12px var(--jarvis-gold);
-}
-
-/* ============================================
-   TYPEWRITER CURSOR
-   ============================================ */
+/* Typewriter cursor */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -257,90 +131,37 @@ body::after {
 
 .typewriter-cursor::after {
   content: "▊";
-  color: var(--jarvis-gold);
+  color: var(--jarvis-cyan);
   animation: blink 0.7s infinite;
   margin-left: 3px;
-  text-shadow: 0 0 8px var(--jarvis-gold);
+  text-shadow: 0 0 8px var(--jarvis-cyan);
 }
 
-/* ============================================
-   MENSAGENS — ENTRADA CINEMATOGRÁFICA
-   ============================================ */
-@keyframes messageSlide {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.96);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
+/* Entrada de mensagem */
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 
 .message-in {
-  animation: messageSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: messageIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Efeito holográfico nas mensagens do JARVIS */
-.holo {
-  position: relative;
-  overflow: hidden;
+/* Boot */
+@keyframes bootBar {
+  from { width: 0%; }
+  to { width: 100%; }
 }
 
-.holo::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(34, 211, 238, 0.15),
-    transparent
-  );
-  animation: holoShine 3s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes holoShine {
-  0% { left: -100%; }
-  50%, 100% { left: 100%; }
-}
-
-/* ============================================
-   PULSAÇÃO / BATIMENTO
-   ============================================ */
-@keyframes heartbeat {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  10% { transform: scale(1.05); opacity: 1; }
-  20% { transform: scale(1); opacity: 0.7; }
-  30% { transform: scale(1.03); opacity: 0.9; }
-  40% { transform: scale(1); opacity: 0.7; }
-}
-
-.heartbeat {
-  animation: heartbeat 2s ease-in-out infinite;
-}
-
-/* ============================================
-   CÓDIGO PISCANDO (tipo terminal)
-   ============================================ */
+/* Piscar código */
 @keyframes codePulse {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.8; }
 }
 
-.code-pulse {
-  animation: codePulse 2s ease-in-out infinite;
-}
+.code-pulse { animation: codePulse 2s ease-in-out infinite; }
 
-/* ============================================
-   RADAR
-   ============================================ */
+/* Radar */
 @keyframes radarSweep {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -351,108 +172,27 @@ body::after {
   transform-origin: center;
 }
 
-/* ============================================
-   BOOT ANIMATION
-   ============================================ */
-@keyframes bootBar {
-  from { width: 0%; }
-  to { width: 100%; }
+/* Equalizer bars */
+@keyframes eqBar {
+  0%, 100% { height: 20%; }
+  50% { height: 100%; }
 }
 
-@keyframes bootFadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+.eq-bar {
+  animation: eqBar 0.6s ease-in-out infinite;
 }
 
-.boot-in {
-  animation: bootFadeIn 0.8s ease-out;
-}
-
-/* ============================================
-   FLICKER CRT
-   ============================================ */
-@keyframes crtFlicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.98; }
-  52% { opacity: 1; }
-  60% { opacity: 0.96; }
-  62% { opacity: 1; }
-}
-
-.crt {
-  animation: crtFlicker 5s infinite;
-}
-
-/* ============================================
-   ONDAS DE ENERGIA (para o reator)
-   ============================================ */
-@keyframes energyWave {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-    border-color: rgba(34, 211, 238, 0.8);
-  }
-  100% {
-    transform: scale(2.5);
-    opacity: 0;
-    border-color: rgba(34, 211, 238, 0);
-  }
-}
-
-.energy-wave {
-  position: absolute;
-  inset: 0;
-  border: 2px solid var(--jarvis-cyan);
-  border-radius: 50%;
-  animation: energyWave 3s ease-out infinite;
-  pointer-events: none;
-}
-
-/* ============================================
-   FADE IN UP
-   ============================================ */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.fade-in-up {
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ============================================
-   INPUT FOCUS GLOW
-   ============================================ */
-input:focus {
-  outline: none;
-}
-
-/* ============================================
-   SELEÇÃO DE TEXTO STARK
-   ============================================ */
+/* Seleção */
 ::selection {
-  background: rgba(239, 68, 68, 0.4);
+  background: rgba(34, 211, 238, 0.4);
   color: white;
-  text-shadow: 0 0 8px var(--jarvis-red);
 }
 
-/* ============================================
-   BOTÕES HOVER
-   ============================================ */
+/* Botões hover */
 button {
   transition: all 0.2s ease;
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-}
-
-button:active:not(:disabled) {
-  transform: translateY(0);
 }

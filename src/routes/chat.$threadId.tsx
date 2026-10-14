@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useJarvis } from "../components/jarvis/Bootstrap";
 import { ArcReactor } from "../components/jarvis/ArcReactor";
+import { MouseTrail } from "../components/jarvis/MouseTrail";
 import { Conversation } from "../components/ai-elements/conversation";
 import { PromptInput } from "../components/ai-elements/prompt-input";
 import { SFX } from "../lib/sfx";
@@ -18,18 +20,14 @@ export function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [state, setState] = useState<"idle" | "thinking" | "speaking">("idle");
   const [listening, setListening] = useState(false);
-  const [alwaysOn, setAlwaysOn] = useState(false);
-  const [facts, setFacts] = useState<string[]>([]);
+  const [booted, setBooted] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const alwaysOnRef = useRef(false);
-  const stateRef = useRef(state);
-  const messagesRef = useRef(messages);
 
-  // Mantém refs atualizados
-  useEffect(() => { stateRef.current = state; }, [state]);
-  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => {
+    const t = setTimeout(() => setBooted(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
 
-  // Carrega histórico
   useEffect(() => {
     supabase
       .from("messages")
@@ -39,66 +37,6 @@ export function ChatPage() {
       .then(({ data }) => data && setMessages(data as Msg[]));
   }, [threadId]);
 
-  // Carrega fatos do usuário (memória)
-  useEffect(() => {
-    if (!user?.id) return;
-    supabase
-      .from("user_facts")
-      .select("fact")
-      .eq("user_id", user.id)
-      .then(({ data }) => {
-        if (data) setFacts(data.map((f: any) => f.fact));
-      });
-  }, [user?.id]);
-
-  // Salva fato novo (chamada de fora)
-  const saveFact = async (fact: string) => {
-    if (!user?.id) return;
-    const { error } = await supabase
-      .from("user_facts")
-      .insert({ user_id: user.id, fact });
-    if (!error) setFacts((f) => [...f, fact]);
-  };
-
-  // ==== VOZ CONTÍNUA ====
-  const startAlwaysOn = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return alert("Reconhecimento de fala não suportado.");
-
-    const rec = new SR();
-    rec.lang = "pt-BR";
-    rec.continuous = true;
-    rec.interimResults = false;
-
-    rec.onresult = (e: any) => {
-      const transcript = e.results[e.results.length - 1][0].transcript.trim();
-      // Só responde se mencionar "jarvis"
-      if (/jarvis/i.test(transcript)) {
-        const clean = transcript.replace(/jarvis/gi, "").trim();
-        if (clean) send(clean, true);
-      }
-    };
-
-    rec.onend = () => {
-      if (alwaysOnRef.current) {
-        try { rec.start(); } catch {}
-      }
-    };
-
-    rec.start();
-    recognitionRef.current = rec;
-    alwaysOnRef.current = true;
-    setAlwaysOn(true);
-    SFX.click();
-  };
-
-  const stopAlwaysOn = () => {
-    alwaysOnRef.current = false;
-    recognitionRef.current?.stop();
-    setAlwaysOn(false);
-  };
-
-  // STT manual (botão)
   const toggleListening = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return alert("Reconhecimento de fala não suportado.");
@@ -109,7 +47,7 @@ export function ChatPage() {
     }
     const rec = new SR();
     rec.lang = "pt-BR";
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = false;
     rec.onresult = (e: any) => send(e.results[e.results.length - 1][0].transcript);
     rec.onend = () => setListening(false);
@@ -130,11 +68,11 @@ export function ChatPage() {
     window.speechSynthesis.speak(utter);
   };
 
-  const send = async (text: string, fromVoice = false) => {
-    if (!text.trim() || stateRef.current === "thinking") return;
+  const send = async (text: string) => {
+    if (!text.trim()) return;
     SFX.reactorEngage();
     const userMsg: Msg = { id: crypto.randomUUID(), role: "user", content: text };
-    const next = [...messagesRef.current, userMsg];
+    const next = [...messages, userMsg];
     setMessages(next);
     setState("thinking");
 
@@ -143,20 +81,11 @@ export function ChatPage() {
       const { content } = await chatFn({
         messages: next.map((m) => ({ role: m.role, content: m.content })),
         settings,
-        facts,
       });
-
       const botMsg: Msg = { id: crypto.randomUUID(), role: "assistant", content };
       setMessages((m) => [...m, botMsg]);
       SFX.responseDone();
       speak(content);
-
-      // Extrai fatos novos (memória)
-      const factMatch = text.match(/(?:meu nome é|eu sou|eu gosto de|eu moro em|trabalho com|minha profissão é|minha idade é|tenho \d+ anos)\s+([^.!?]+)/i);
-      if (factMatch) {
-        await saveFact(text.trim());
-      }
-
       const title = text.slice(0, 40);
       await supabase
         .from("threads")
@@ -174,48 +103,99 @@ export function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="p-4 border-b border-cyan-400/20 flex justify-between items-center">
-        <button
-          onClick={() => {
-            stopAlwaysOn();
-            navigate({ to: "/" });
-          }}
-          className="font-orbitron text-cyan-300 tracking-widest hover:text-cyan-100"
-        >
-          ← J.A.R.V.I.S.
-        </button>
-        <div className="flex gap-3 items-center">
-          <button
-            onClick={alwaysOn ? stopAlwaysOn : startAlwaysOn}
-            className={`text-xs px-3 py-1 rounded border transition-all ${
-              alwaysOn
-                ? "bg-red-500/20 border-red-400 text-red-300 animate-pulse"
-                : "bg-slate-800 border-cyan-400/30 text-cyan-300 hover:border-cyan-300"
-            }`}
-            title="Voz contínua (diga 'JARVIS' para ativar)"
-          >
-            {alwaysOn ? "🔴 SEMPRE OUVINDO" : "🎙 SEMPRE OUVIR"}
-          </button>
-          <span className="text-xs text-slate-500">{user.email}</span>
-        </div>
-      </header>
+    <div className="min-h-screen text-slate-100 flex flex-col relative overflow-hidden">
+      <div className="scanline" />
+      <MouseTrail />
 
-      <div className="py-6">
-        <ArcReactor state={state} />
-      </div>
-
-      {alwaysOn && (
-        <div className="text-center text-xs text-cyan-400/70 tracking-widest -mt-4 mb-2 animate-pulse">
-          ▸ DIZ "JARVIS" PARA ATIVAR
+      {/* Boot overlay */}
+      {!booted && (
+        <div className="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center">
+          <div className="text-center">
+            <div
+              className="font-orbitron text-cyan-400 text-3xl tracking-[0.5em] animate-pulse"
+              style={{ textShadow: "0 0 20px #22d3ee" }}
+            >
+              J.A.R.V.I.S.
+            </div>
+            <div className="text-[10px] text-cyan-400/60 tracking-[0.4em] mt-2">
+              INICIALIZANDO SISTEMAS
+            </div>
+            <div className="mt-6 w-80 h-1 bg-slate-900 overflow-hidden mx-auto rounded">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
+                style={{ animation: "bootBar 1.2s ease-out forwards" }}
+              />
+            </div>
+            <div className="text-[9px] text-slate-600 tracking-widest mt-3 font-mono">
+              CARREGANDO MÓDULOS NEURAIS...
+            </div>
+          </div>
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto pb-4">
+      {/* HUD lateral esquerdo */}
+      {booted && (
+        <>
+          <div className="absolute top-24 left-4 space-y-2 z-20 hidden md:block">
+            <StatusBar label="CPU" color="#22d3ee" />
+            <StatusBar label="MEM" color="#0ea5e9" />
+            <StatusBar label="NET" color="#67e8f9" />
+          </div>
+
+          <div className="absolute top-24 right-4 z-20 hidden md:block">
+            <Radar />
+          </div>
+
+          <div className="absolute bottom-28 left-4 text-[9px] font-mono text-cyan-400/40 space-y-0.5 z-20 hidden md:block code-pulse">
+            <div>▸ AUTH_OK</div>
+            <div>▸ ENC_AES256</div>
+            <div>▸ LINK:STABLE</div>
+            <div>▸ PWR:98.4%</div>
+          </div>
+
+          <div className="absolute bottom-28 right-4 text-[9px] font-mono text-cyan-400/40 text-right z-20 hidden md:block">
+            <div>LAT -23.5505</div>
+            <div>LNG -46.6333</div>
+            <div>SYS v2.0.4</div>
+          </div>
+        </>
+      )}
+
+      {/* Top bar */}
+      <header className="relative z-10 p-4 border-b border-cyan-500/20 backdrop-blur-sm bg-slate-950/60">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <button
+            onClick={() => navigate({ to: "/" })}
+            className="font-orbitron text-cyan-400 tracking-widest hover:text-cyan-200 transition flex items-center gap-2"
+            style={{ textShadow: "0 0 10px #22d3ee" }}
+          >
+            <span className="text-cyan-300">◄</span>
+            J.A.R.V.I.S.
+          </button>
+
+          <div className="flex items-center gap-4 text-[10px] tracking-widest text-slate-500 font-mono">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              ONLINE
+            </span>
+            <span className="hidden md:inline">OPERADOR: {user.email}</span>
+            <span className="hidden lg:inline">SYS: v2.0.4</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Reactor */}
+      <div className="py-10 relative z-10">
+        <ArcReactor state={state} />
+      </div>
+
+      {/* Mensagens */}
+      <main className="flex-1 overflow-y-auto pb-4 relative z-10">
         <Conversation messages={messages} />
       </main>
 
-      <footer className="p-4 border-t border-cyan-400/20">
+      {/* Input */}
+      <footer className="p-4 border-t border-cyan-500/20 backdrop-blur-sm bg-slate-950/60 relative z-10">
         <PromptInput
           onSend={send}
           listening={listening}
@@ -223,6 +203,53 @@ export function ChatPage() {
           disabled={state === "thinking"}
         />
       </footer>
+    </div>
+  );
+}
+
+function StatusBar({ label, color }: { label: string; color: string }) {
+  const [value, setValue] = useState(20 + Math.random() * 60);
+  useEffect(() => {
+    const i = setInterval(() => {
+      setValue((v) => Math.max(15, Math.min(95, v + (Math.random() - 0.5) * 8)));
+    }, 1500);
+    return () => clearInterval(i);
+  }, []);
+  return (
+    <div className="w-28">
+      <div className="flex justify-between text-[9px] font-mono tracking-widest" style={{ color }}>
+        <span>{label}</span>
+        <span>{value.toFixed(0)}%</span>
+      </div>
+      <div className="h-1 bg-slate-900 rounded-sm mt-0.5 overflow-hidden">
+        <motion.div
+          className="h-full"
+          style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.8 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Radar() {
+  return (
+    <div className="w-24 h-24 relative">
+      <div className="absolute inset-0 rounded-full border border-cyan-500/40" />
+      <div className="absolute inset-3 rounded-full border border-cyan-500/25" />
+      <div className="absolute inset-6 rounded-full border border-cyan-500/15" />
+      <div className="absolute inset-9 rounded-full border border-cyan-500/10" />
+      <div className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
+      <div className="radar-sweep absolute inset-0">
+        <div
+          className="absolute top-1/2 left-1/2 w-12 h-px origin-left"
+          style={{
+            background: "linear-gradient(90deg, #22d3ee, transparent)",
+            transform: "translateY(-50%)",
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -4,35 +4,35 @@ type State = "idle" | "thinking" | "speaking";
 
 export function ArcReactor({ state }: { state: State }) {
   const isActive = state !== "idle";
-  const ringColor = state === "speaking" ? "#fbbf24" : state === "thinking" ? "#22d3ee" : "#ef4444";
+  const ringColor = state === "speaking" ? "#fbbf24" : "#22d3ee";
   const pulseSpeed = state === "idle" ? 3 : state === "thinking" ? 0.8 : 1.2;
 
   return (
-    <div className="relative w-80 h-80 mx-auto">
+    <div className="relative w-72 h-72 mx-auto">
       {/* Glow externo massivo */}
       <motion.div
         className="absolute -inset-16 rounded-full blur-3xl"
-        style={{ background: `radial-gradient(circle, ${ringColor}40 0%, transparent 60%)` }}
-        animate={{ opacity: [0.3, 0.7, 0.3], scale: [1, 1.1, 1] }}
+        style={{ background: `radial-gradient(circle, ${ringColor}50, transparent 60%)` }}
+        animate={{ opacity: [0.3, 0.8, 0.3], scale: [1, 1.1, 1] }}
         transition={{ duration: pulseSpeed, repeat: Infinity }}
       />
 
-      {/* Ondas de energia */}
+      {/* Ondas de energia expandindo */}
       {isActive && [0, 1, 2].map((i) => (
         <motion.div
           key={`wave-${i}`}
           className="absolute inset-0 rounded-full border"
-          style={{ borderColor: `${ringColor}60` }}
+          style={{ borderColor: `${ringColor}70` }}
           animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
           transition={{ duration: 2.5, repeat: Infinity, delay: i * 0.8 }}
         />
       ))}
 
       {/* SVG com anéis elaborados */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 320">
-        {/* Anel externo com gaps */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 288 288">
+        {/* Anel externo com traços */}
         <motion.circle
-          cx="160" cy="160" r="150"
+          cx="144" cy="144" r="135"
           fill="none"
           stroke={ringColor}
           strokeWidth="2"
@@ -40,12 +40,12 @@ export function ArcReactor({ state }: { state: State }) {
           opacity="0.7"
           animate={{ rotate: 360 }}
           transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "160px 160px" }}
+          style={{ transformOrigin: "144px 144px" }}
         />
 
-        {/* Segundo anel tracejado */}
+        {/* Segundo anel tracejado fino */}
         <motion.circle
-          cx="160" cy="160" r="135"
+          cx="144" cy="144" r="120"
           fill="none"
           stroke={ringColor}
           strokeWidth="1"
@@ -53,17 +53,17 @@ export function ArcReactor({ state }: { state: State }) {
           opacity="0.5"
           animate={{ rotate: -360 }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "160px 160px" }}
+          style={{ transformOrigin: "144px 144px" }}
         />
 
-        {/* Arcos de segmentos (maradores) */}
+        {/* Marcadores radiais */}
         {Array.from({ length: 24 }).map((_, i) => {
           const angle = (i * 360) / 24;
           const rad = (angle * Math.PI) / 180;
-          const x1 = 160 + Math.cos(rad) * 118;
-          const y1 = 160 + Math.sin(rad) * 118;
-          const x2 = 160 + Math.cos(rad) * 126;
-          const y2 = 160 + Math.sin(rad) * 126;
+          const x1 = 144 + Math.cos(rad) * 105;
+          const y1 = 144 + Math.sin(rad) * 105;
+          const x2 = 144 + Math.cos(rad) * 113;
+          const y2 = 144 + Math.sin(rad) * 113;
           return (
             <line
               key={i}
@@ -86,7 +86,7 @@ export function ArcReactor({ state }: { state: State }) {
           filter: `drop-shadow(0 0 6px ${ringColor})`,
         }}
         animate={{ rotate: 360 }}
-        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+        transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
       />
 
       {/* Anel girando anti-horário */}
@@ -99,12 +99,12 @@ export function ArcReactor({ state }: { state: State }) {
           filter: "drop-shadow(0 0 6px #fbbf24)",
         }}
         animate={{ rotate: -360 }}
-        transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
+        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
       />
 
       {/* Núcleo */}
       <motion.div
-        className="absolute inset-20 rounded-full border-2 flex items-center justify-center bg-slate-950"
+        className="absolute inset-16 rounded-full border-2 flex items-center justify-center bg-slate-950"
         style={{ borderColor: `${ringColor}88` }}
         animate={{
           boxShadow: [
@@ -120,12 +120,12 @@ export function ArcReactor({ state }: { state: State }) {
             {state === "idle" ? "STANDBY" : state === "thinking" ? "PROCESSING" : "SPEAKING"}
           </div>
           <div className="text-[8px] text-slate-500 mt-1 font-mono">
-            SYS v2.0.4
+            v2.0
           </div>
         </div>
       </motion.div>
 
-      {/* Partículas orbitando — 12 no total */}
+      {/* 12 partículas orbitando */}
       {Array.from({ length: 12 }).map((_, i) => {
         const radius = 100 + (i % 4) * 12;
         const duration = 5 + (i % 5) * 1.5;
