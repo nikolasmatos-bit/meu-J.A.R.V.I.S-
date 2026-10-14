@@ -15,7 +15,6 @@ import { chatFn } from "../lib/chat.server";
 type Msg = { id: string; role: "user" | "assistant"; content: string };
 type Fact = { id: string; fact: string; created_at: string };
 
-// Padrões que o JARVIS detecta automaticamente
 const FACT_PATTERNS = [
   /(?:meu nome é|me chamo|pode me chamar de|sou o|sou a)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)/,
   /(?:eu moro em|vivo em|sou de|moro na cidade de)\s+([^.!?]{2,60})/i,
@@ -54,14 +53,27 @@ export function ChatPage() {
   const [facts, setFacts] = useState<Fact[]>([]);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [learnedIndicator, setLearnedIndicator] = useState<string | null>(null);
+  const [ambientOn, setAmbientOn] = useState(false);
+  const [wakeMode, setWakeMode] = useState(false);
+  const [wakeDetected, setWakeDetected] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const wakeRecRef = useRef<any>(null);
+  const ambientOnRef = useRef(false);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    ambientOnRef.current = ambientOn;
+  }, [ambientOn]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const t = setTimeout(() => setBooted(true), 800);
     return () => clearTimeout(t);
   }, []);
 
-  // Timer
   useEffect(() => {
     if (state !== "thinking") {
       setElapsed(0);
@@ -71,7 +83,19 @@ export function ChatPage() {
     return () => clearInterval(t);
   }, [state]);
 
-  // Carrega mensagens
+  // Beep periódico quando pensa
+  useEffect(() => {
+    if (state !== "thinking") return;
+    const t = setInterval(() => SFX.thinkBeep(), 900);
+    return () => clearInterval(t);
+  }, [state]);
+
+  // Humor do ambiente
+  useEffect(() => {
+    if (!ambientOn) return;
+    SFX.setAmbientMood(state);
+  }, [state, ambientOn]);
+
   useEffect(() => {
     supabase
       .from("messages")
@@ -81,7 +105,6 @@ export function ChatPage() {
       .then(({ data }) => data && setMessages(data as Msg[]));
   }, [threadId]);
 
-  // Carrega fatos (memória)
   useEffect(() => {
     if (!user?.id) return;
     supabase
@@ -94,6 +117,59 @@ export function ChatPage() {
       });
   }, [user?.id]);
 
+  // ============================================
+  // AMBIENT (som ambiente do reator)
+  // ============================================
+  const toggleAmbient = () => {
+    if (ambientOn) {
+      SFX.stopAmbient();
+      setAmbientOn(false);
+    } else {
+      SFX.startAmbient();
+      SFX.setAmbientMood(state);
+      setAmbientOn(true);
+    }
+  };
+
+  // ============================================
+  // WAKE WORD
+  // ============================================
+  const toggleWakeMode = () => {
+    if (wakeMode) {
+      wakeRecRef.current?.stop();
+      setWakeMode(false);
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return alert("Reconhecimento de fala não suportado.");
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.continuous = true;
+    rec.interimResults = false;
+
+    rec.onresult = (e: any) => {
+      const transcript = e.results[e.results.length - 1][0].transcript.trim();
+      if (/jarvis/i.test(transcript)) {
+        setWakeDetected(true);
+        SFX.wakeDetected();
+        setTimeout(() => setWakeDetected(false), 1500);
+        const clean = transcript.replace(/jarvis/gi, "").replace(/^[,.\s]+/, "").trim();
+        if (clean) send(clean);
+      }
+    };
+
+    rec.onend = () => {
+      if (wakeMode) {
+        try { rec.start(); } catch {}
+      }
+    };
+
+    rec.start();
+    wakeRecRef.current = rec;
+    setWakeMode(true);
+    SFX.click();
+  };
+
   const toggleListening = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return alert("Reconhecimento de fala não suportado.");
@@ -104,7 +180,7 @@ export function ChatPage() {
     }
     const rec = new SR();
     rec.lang = "pt-BR";
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = false;
     rec.onresult = (e: any) => send(e.results[e.results.length - 1][0].transcript);
     rec.onend = () => setListening(false);
@@ -131,7 +207,6 @@ export function ChatPage() {
     if (newFacts.length === 0) return;
 
     for (const f of newFacts) {
-      // Evita duplicatas exatas
       if (facts.some((existing) => existing.fact.toLowerCase() === f.toLowerCase())) continue;
 
       const { data, error } = await supabase
@@ -150,13 +225,12 @@ export function ChatPage() {
 
   const send = async (text: string) => {
     if (!text.trim()) return;
-    SFX.reactorEngage();
+    SFX.sendWhoosh();
     const userMsg: Msg = { id: crypto.randomUUID(), role: "user", content: text };
     const next = [...messages, userMsg];
     setMessages(next);
     setState("thinking");
 
-    // Salva fatos aprendidos (não bloqueia)
     saveLearnedFacts(text);
 
     try {
@@ -191,7 +265,6 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
-      {/* Memory panel */}
       <MemoryPanel
         open={memoryOpen}
         onClose={() => setMemoryOpen(false)}
@@ -200,7 +273,6 @@ export function ChatPage() {
         userId={user?.id ?? ""}
       />
 
-      {/* Learned indicator */}
       <AnimatePresence>
         {learnedIndicator && (
           <motion.div
@@ -221,15 +293,31 @@ export function ChatPage() {
                   ▸ MEMÓRIA ATUALIZADA
                 </div>
               </div>
-              <div className="text-xs text-amber-100/90 leading-snug">
-                {learnedIndicator}
-              </div>
+              <div className="text-xs text-amber-100/90 leading-snug">{learnedIndicator}</div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Cantos HUD */}
+      <AnimatePresence>
+        {wakeDetected && (
+          <motion.div
+            key="wake"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 2 }}
+            className="fixed top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+          >
+            <div
+              className="font-orbitron text-2xl tracking-[0.5em] text-amber-300"
+              style={{ textShadow: "0 0 20px #fbbf24, 0 0 40px #f59e0b" }}
+            >
+              ◉ JARVIS
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {booted && (
         <>
           <div className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-cyan-400/60 z-30 pointer-events-none" />
@@ -239,7 +327,6 @@ export function ChatPage() {
         </>
       )}
 
-      {/* Aura */}
       <motion.div
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
         style={{
@@ -253,7 +340,6 @@ export function ChatPage() {
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* Boot */}
       <AnimatePresence>
         {!booted && (
           <motion.div
@@ -277,7 +363,6 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* HUD lateral */}
       {booted && (
         <>
           <div className="absolute top-28 left-6 space-y-3 z-20 hidden lg:block">
@@ -291,7 +376,6 @@ export function ChatPage() {
         </>
       )}
 
-      {/* Header */}
       <motion.header
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -301,7 +385,11 @@ export function ChatPage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-4 flex-wrap">
           <motion.button
             whileHover={{ x: -4 }}
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => {
+              if (ambientOn) SFX.stopAmbient();
+              wakeRecRef.current?.stop();
+              navigate({ to: "/" });
+            }}
             className="flex items-center gap-3 font-orbitron text-cyan-400 tracking-widest hover:text-cyan-200 transition"
             style={{ textShadow: "0 0 10px #22d3ee" }}
           >
@@ -310,7 +398,36 @@ export function ChatPage() {
           </motion.button>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Botão memória */}
+            {/* AMBIENT */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleAmbient}
+              className={`px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition ${
+                ambientOn
+                  ? "border-amber-400 text-amber-300 bg-amber-500/10"
+                  : "border-cyan-500/30 text-cyan-400 hover:border-cyan-400"
+              }`}
+            >
+              {ambientOn ? "🔊 AMBIENT" : "🔇 AMBIENT"}
+            </motion.button>
+
+            {/* WAKE */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleWakeMode}
+              className={`px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-1.5 ${
+                wakeMode
+                  ? "border-red-400 text-red-300 bg-red-500/10 animate-pulse"
+                  : "border-cyan-500/30 text-cyan-400 hover:border-cyan-400"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${wakeMode ? "bg-red-400" : "bg-slate-600"}`} />
+              {wakeMode ? "WAKE ON" : "WAKE OFF"}
+            </motion.button>
+
+            {/* MEMÓRIA */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -324,7 +441,7 @@ export function ChatPage() {
               MEMÓRIA ({facts.length})
             </motion.button>
 
-            <div className="flex items-center gap-4 text-[10px] tracking-widest text-slate-500 font-mono px-3">
+            <div className="flex items-center gap-3 text-[10px] tracking-widest text-slate-500 font-mono px-3">
               <motion.span
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ duration: 2, repeat: Infinity }}
@@ -333,13 +450,31 @@ export function ChatPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
                 <span className="text-emerald-300">ONLINE</span>
               </motion.span>
-              <span className="hidden md:inline">OPERADOR: {user.email}</span>
+              <span className="hidden xl:inline">OPERADOR: {user.email}</span>
             </div>
           </div>
         </div>
       </motion.header>
 
-      {/* Reactor */}
+      {wakeMode && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative z-10 text-center py-2"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/30">
+            <motion.div
+              animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_#ef4444]"
+            />
+            <span className="font-orbitron text-[10px] tracking-[0.4em] text-red-300">
+              DIGA "JARVIS" PARA ATIVAR
+            </span>
+          </div>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, scale: 0.7 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -349,7 +484,6 @@ export function ChatPage() {
         <ArcReactor state={state} />
       </motion.div>
 
-      {/* Status pensando */}
       <AnimatePresence mode="wait">
         {state === "thinking" && (
           <motion.div
