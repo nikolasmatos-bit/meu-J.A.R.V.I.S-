@@ -25,19 +25,19 @@ import {
 type Msg = { id: string; role: "user" | "assistant"; content: string };
 type Fact = { id: string; fact: string; created_at: string };
 
-const PERSONAS_LIST: { id: Persona; label: string; desc: string }[] = [
-  { id: "jarvis", label: "J.A.R.V.I.S.", desc: "Elegante, formal, britânico" },
-  { id: "friday", label: "F.R.I.D.A.Y.", desc: "Jovem, empática, calorosa" },
-  { id: "ultron", label: "ULTRON", desc: "Frio, filosófico, sombrio" },
-  { id: "sextafeira", label: "SEXTA-FEIRA", desc: "Brasileira, informal, direta" },
+const PERSONAS_LIST: { id: Persona; label: string; code: string }[] = [
+  { id: "jarvis", label: "J.A.R.V.I.S.", code: "JVS-04" },
+  { id: "friday", label: "F.R.I.D.A.Y.", code: "FRD-05" },
+  { id: "ultron", label: "ULTRON", code: "ULT-06" },
+  { id: "sextafeira", label: "SEXTA-FEIRA", code: "SXT-07" },
 ];
 
 const FACT_PATTERNS = [
   /(?:meu nome é|me chamo|pode me chamar de)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)/,
   /(?:eu moro em|vivo em|sou de)\s+([^.!?]{2,60})/i,
-  /(?:trabalho com|minha profissão é)\s+([^.!?]{3,60})/i,
+  /(?:trabalho com|minha profissão é)\s+([^.!?]{2,60})/i,
   /(?:eu gosto de|adoro|amo|prefiro)\s+([^.!?]{2,60})/i,
-  /(?:lembre-se que|memorize|anote que)\s+([^.!?]{3,80})/i,
+  /(?:lembre-se que|memorize|anote que)\s+([^.!?]{2,80})/i,
 ];
 
 function extractFacts(text: string): string[] {
@@ -69,17 +69,20 @@ export function ChatPage() {
   const [wakeMode, setWakeMode] = useState(false);
   const [wakeDetected, setWakeDetected] = useState(false);
   const [persona, setPersona] = useState<Persona>("jarvis");
-  const [mode, setMode] = useState<ReasoningMode>("deep");
-  const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const [mode, setMode] = useState<ReasoningMode>("fast");
+  const [personaOpen, setPersonaOpen] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [terminalLines, setTerminalLines] = useState<string[]>([]);
+  const [time, setTime] = useState(new Date());
   const recognitionRef = useRef<any>(null);
   const wakeRecRef = useRef<any>(null);
 
   const theme = THEMES[persona];
   const currentMode = MODES[mode];
+  const currentPersona = PERSONAS_LIST.find((p) => p.id === persona)!;
 
   useEffect(() => {
     const p = loadPersona();
@@ -97,8 +100,13 @@ export function ChatPage() {
     const t = setTimeout(() => {
       setBooted(true);
       SFX.bootComplete();
-    }, 800);
+    }, 600);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
@@ -122,11 +130,31 @@ export function ChatPage() {
   }, [state, ambientOn]);
 
   useEffect(() => {
+    if (!booted) return;
+    const logs = [
+      "processor :: response cycle OK",
+      "memory :: neural link stable",
+      "voice :: TTS engine ready",
+      "network :: uplink 99.2%",
+      "core :: thermal nominal",
+    ];
+    let i = 0;
+    const t = setInterval(() => {
+      setTerminalLines((prev) => [
+        ...prev.slice(-3),
+        `[${new Date().toLocaleTimeString("pt-BR")}] ${logs[i % logs.length]}`,
+      ]);
+      i++;
+    }, 4000);
+    return () => clearInterval(t);
+  }, [booted]);
+
+  useEffect(() => {
     const handle = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setMemoryOpen(false);
-        setPersonaMenuOpen(false);
-        setModeMenuOpen(false);
+        setPersonaOpen(false);
+        setModeOpen(false);
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
@@ -137,8 +165,7 @@ export function ChatPage() {
             .insert({ user_id: user.id, title: "Nova conversa" })
             .select()
             .single();
-          if (!error && data)
-            navigate({ to: "/chat/$threadId", params: { threadId: data.id } });
+          if (!error && data) navigate({ to: "/chat/$threadId", params: { threadId: data.id } });
         })();
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "m") {
@@ -181,32 +208,20 @@ export function ChatPage() {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
-      .then(({ data }) => {
-        if (data) setFacts(data as Fact[]);
-      });
+      .then(({ data }) => { if (data) setFacts(data as Fact[]); });
   }, [user?.id]);
 
   const toggleAmbient = () => {
     SFX.buttonPress();
-    if (ambientOn) {
-      SFX.stopAmbient();
-      setAmbientOn(false);
-    } else {
-      SFX.startAmbient();
-      SFX.setAmbientMood(state);
-      setAmbientOn(true);
-    }
+    if (ambientOn) { SFX.stopAmbient(); setAmbientOn(false); }
+    else { SFX.startAmbient(); SFX.setAmbientMood(state); setAmbientOn(true); }
   };
 
   const toggleWakeMode = () => {
     SFX.buttonPress();
-    if (wakeMode) {
-      wakeRecRef.current?.stop();
-      setWakeMode(false);
-      return;
-    }
+    if (wakeMode) { wakeRecRef.current?.stop(); setWakeMode(false); return; }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return alert("Reconhecimento de fala não suportado.");
+    if (!SR) return alert("Reconhecimento de voz não suportado.");
     const rec = new SR();
     rec.lang = "pt-BR";
     rec.continuous = true;
@@ -217,20 +232,11 @@ export function ChatPage() {
         setWakeDetected(true);
         SFX.wakeDetected();
         setTimeout(() => setWakeDetected(false), 1500);
-        const clean = t
-          .replace(/jarvis|friday|ultron|sexta/gi, "")
-          .replace(/^[,.\s]+/, "")
-          .trim();
+        const clean = t.replace(/jarvis|friday|ultron|sexta/gi, "").replace(/^[,.\s]+/, "").trim();
         if (clean) send(clean);
       }
     };
-    rec.onend = () => {
-      if (wakeMode) {
-        try {
-          rec.start();
-        } catch {}
-      }
-    };
+    rec.onend = () => { if (wakeMode) { try { rec.start(); } catch {} } };
     rec.start();
     wakeRecRef.current = rec;
     setWakeMode(true);
@@ -239,12 +245,8 @@ export function ChatPage() {
   const toggleListening = () => {
     SFX.buttonPress();
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return alert("Reconhecimento de fala não suportado.");
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
+    if (!SR) return alert("Reconhecimento de voz não suportado.");
+    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
     const rec = new SR();
     rec.lang = "pt-BR";
     rec.continuous = false;
@@ -265,8 +267,8 @@ export function ChatPage() {
     utter.volume = s.volume;
     utter.pitch = theme.voicePitch;
     const voices = window.speechSynthesis.getVoices();
-    const ptVoice = voices.find((v) => v.lang.startsWith("pt")) ?? voices[0];
-    if (ptVoice) utter.voice = ptVoice;
+    const pt = voices.find((v) => v.lang.startsWith("pt")) ?? voices[0];
+    if (pt) utter.voice = pt;
     utter.onstart = () => setState("speaking");
     utter.onend = () => setState("idle");
     window.speechSynthesis.speak(utter);
@@ -293,12 +295,9 @@ export function ChatPage() {
   };
 
   const send = async (text: string) => {
-    console.log("[JARVIS] send() chamado com:", text);
-
     if (!text.trim()) return;
-
-    try { SFX.messageSend(); } catch (e) { console.warn("sfx messageSend falhou", e); }
-    try { SFX.sendWhoosh(); } catch (e) { console.warn("sfx sendWhoosh falhou", e); }
+    try { SFX.messageSend(); } catch {}
+    try { SFX.sendWhoosh(); } catch {}
 
     setCommandHistory((h) => [...h, text].slice(-50));
     setHistoryIndex(-1);
@@ -309,76 +308,52 @@ export function ChatPage() {
     setState("thinking");
     setStreamingText("");
 
-    // Timeout de segurança — se não responder em 45s, libera o usuário
     const safetyTimeout = setTimeout(() => {
-      console.warn("[JARVIS] timeout de segurança atingido");
       setStreamingText("");
       setState("idle");
       try { SFX.error(); } catch {}
       setMessages((m) => [
         ...m,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: "⚠️ O servidor demorou demais para responder. Tente novamente ou reformule a pergunta.",
-        },
+        { id: crypto.randomUUID(), role: "assistant", content: "⚠️ Tempo esgotado. Tente novamente." },
       ]);
     }, 45000);
-
-    console.log("[JARVIS] mensagem adicionada, iniciando stream...");
 
     saveLearnedFacts(text);
 
     try {
       const settings = { ...loadSettings(), persona, mode };
-
       await chatStreamFn(
         {
           messages: next.map((m) => ({ role: m.role, content: m.content })),
           settings,
           facts: facts.map((f) => f.fact),
         },
-        (chunk) => {
-          setStreamingText((prev) => prev + chunk);
-        },
+        (chunk) => setStreamingText((prev) => prev + chunk),
         async (fullText) => {
           clearTimeout(safetyTimeout);
-          console.log("[JARVIS] resposta completa recebida");
-          setMessages((m) => [
-            ...m,
-            { id: crypto.randomUUID(), role: "assistant", content: fullText },
-          ]);
+          setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: fullText }]);
           setStreamingText("");
           try { SFX.messageReceive(); } catch {}
           try { SFX.responseDone(); } catch {}
           speak(fullText);
-          const title = text.slice(0, 40);
           await supabase
             .from("threads")
-            .update({ title, updated_at: new Date().toISOString() })
+            .update({ title: text.slice(0, 40), updated_at: new Date().toISOString() })
             .eq("id", threadId)
             .eq("title", "Nova conversa");
         },
         (err) => {
           clearTimeout(safetyTimeout);
-          console.error("[JARVIS] erro no stream:", err);
           try { SFX.error(); } catch {}
-          setMessages((m) => [
-            ...m,
-            { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err}` },
-          ]);
+          setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err}` }]);
           setStreamingText("");
           setState("idle");
         }
       );
     } catch (err: any) {
       clearTimeout(safetyTimeout);
-      console.error("[JARVIS] catch final:", err);
       try { SFX.error(); } catch {}
-      setMessages((m) => [
-        ...m,
-        { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err.message}` },
-      ]);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err.message}` }]);
       setStreamingText("");
       setState("idle");
     }
@@ -394,243 +369,198 @@ export function ChatPage() {
     return commandHistory[commandHistory.length - 1 - newIdx];
   };
 
+  const switchPersona = (p: Persona) => {
+    setPersona(p);
+    applyTheme(p);
+    setPersonaOpen(false);
+    SFX.personaSwitch();
+  };
+
+  const switchMode = (m: ReasoningMode) => {
+    setMode(m);
+    saveMode(m);
+    setModeOpen(false);
+    SFX.modeSwitch();
+  };
+
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col relative overflow-hidden">
-      <div className="scanline" />
+    <div className="min-h-screen text-slate-100 relative overflow-hidden bg-[#05070d] flex flex-col">
       <MouseTrail />
 
-      <MemoryPanel
-        open={memoryOpen}
-        onClose={() => {
-          SFX.menuClose();
-          setMemoryOpen(false);
-        }}
-        facts={facts}
-        onFactsChange={setFacts}
-        userId={user?.id ?? ""}
-      />
-
-      <AnimatePresence>
-        {learnedIndicator && (
-          <motion.div
-            key="learned"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-32 right-6 z-[80] max-w-xs"
-          >
-            <div
-              className="p-3 rounded-lg border backdrop-blur-xl"
-              style={{
-                borderColor: `${theme.primary}88`,
-                background: theme.bg,
-                boxShadow: `0 0 30px ${theme.glow}`,
-              }}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <motion.div
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                  className="w-3 h-3 rounded-full border-2 border-t-transparent"
-                  style={{ borderColor: theme.primary }}
-                />
-                <div className="text-[9px] font-mono tracking-widest" style={{ color: theme.primary }}>
-                  ▸ MEMÓRIA ATUALIZADA
-                </div>
-              </div>
-              <div className="text-xs text-slate-100 leading-snug">{learnedIndicator}</div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {wakeDetected && (
-          <motion.div
-            key="wake"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 2 }}
-            className="fixed top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-          >
-            <div
-              className="font-orbitron text-2xl tracking-[0.5em]"
-              style={{
-                color: theme.primary,
-                textShadow: `0 0 20px ${theme.primary}, 0 0 40px ${theme.glow}`,
-              }}
-            >
-              ◉ {theme.name}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {booted && (
-        <>
-          <div
-            className="fixed top-3 left-3 w-8 h-8 border-t-2 border-l-2 z-40 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-          <div
-            className="fixed top-3 right-3 w-8 h-8 border-t-2 border-r-2 z-40 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-          <div
-            className="fixed bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 z-40 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-          <div
-            className="fixed bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 z-40 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-        </>
-      )}
-
-      <motion.div
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-colors duration-700"
+      {/* BLUEPRINT GRID */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0"
         style={{
-          width: "80vmin",
-          height: "80vmin",
-          background: `radial-gradient(circle, ${theme.bg} 0%, transparent 60%)`,
-          filter: "blur(50px)",
-          zIndex: 0,
+          backgroundImage: `
+            linear-gradient(${theme.primary}0d 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.primary}0d 1px, transparent 1px),
+            linear-gradient(${theme.primary}1a 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.primary}1a 1px, transparent 1px)
+          `,
+          backgroundSize: "20px 20px, 20px 20px, 100px 100px, 100px 100px",
         }}
-        animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.9, 0.4] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
       />
 
+      {/* Watermark vertical */}
+      <div
+        className="fixed top-1/2 -translate-y-1/2 font-orbitron select-none pointer-events-none z-0 hidden lg:block"
+        style={{
+          right: "-2rem",
+          fontSize: "180px",
+          lineHeight: 1,
+          color: `${theme.primary}06`,
+          writingMode: "vertical-rl",
+          transform: "translateY(-50%) rotate(180deg)",
+          letterSpacing: "0.1em",
+        }}
+      >
+        {currentPersona.code}
+      </div>
+
+      {/* Rail esquerdo */}
+      <div
+        className="fixed left-0 top-0 bottom-0 w-8 border-r z-20 hidden md:flex flex-col items-center justify-between py-4 shrink-0"
+        style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.7)" }}
+      >
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="w-4 h-4 border"
+          style={{ borderColor: theme.primary, borderTopColor: "transparent" }}
+        />
+        <div
+          className="font-mono text-[9px] tracking-[0.4em] rotate-180"
+          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
+        >
+          CHAT · SESSION-{threadId.slice(0, 4).toUpperCase()}
+        </div>
+        <div
+          className="font-mono text-[9px] tracking-[0.3em]"
+          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+        >
+          STARK
+        </div>
+      </div>
+
+      {/* Rail direito */}
+      <div
+        className="fixed right-0 top-0 bottom-0 w-8 border-l z-20 hidden md:flex flex-col items-center justify-between py-4 shrink-0"
+        style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.7)" }}
+      >
+        <div
+          className="font-mono text-[9px] tracking-[0.3em]"
+          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
+        >
+          MSGS {String(messages.length).padStart(3, "0")}
+        </div>
+        <div className="w-px h-12" style={{ background: `${theme.primary}44` }} />
+        <div
+          className="font-mono text-[9px] tracking-[0.3em]"
+          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
+        >
+          SEC-7G
+        </div>
+      </div>
+
+      {/* Boot */}
       <AnimatePresence>
         {!booted && (
           <motion.div
             key="boot"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-slate-950 flex items-center justify-center"
+            className="fixed inset-0 z-[500] bg-[#05070d] flex items-center justify-center"
           >
-            <div className="text-center">
-              <div
-                className="font-orbitron text-3xl tracking-[0.5em] animate-pulse"
-                style={{ color: theme.primary, textShadow: `0 0 30px ${theme.primary}` }}
-              >
-                {theme.name}
+            <div className="font-mono text-sm text-center" style={{ color: theme.primary }}>
+              <div className="text-[10px] tracking-[0.5em] mb-2" style={{ color: `${theme.primary}66` }}>
+                STARK MAINFRAME
               </div>
-              <div className="text-[10px] text-slate-400 tracking-[0.4em] mt-2 font-mono">
-                CARREGANDO {currentMode.name}...
+              <div className="font-orbitron text-2xl tracking-[0.3em]">{currentPersona.label}</div>
+              <div className="mt-4 w-64 h-px mx-auto overflow-hidden" style={{ background: `${theme.primary}22` }}>
+                <motion.div
+                  className="h-full"
+                  style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 0.8 }}
+                />
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {booted && (
-        <div className="absolute top-32 left-6 space-y-3 z-20 hidden lg:block">
-          <StatusBar label="CPU" color={theme.primary} />
-          <StatusBar label="MEM" color={theme.accent} />
-          <StatusBar label="NET" color={theme.primary} />
-        </div>
-      )}
+      {/* CONTEÚDO */}
+      <div className="relative z-10 flex-1 flex flex-col pl-0 md:pl-8 pr-0 md:pr-8 min-h-0">
+        {/* Top bar */}
+        <motion.header
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : -20 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="flex items-center justify-between px-6 py-3 border-b font-mono text-[10px] tracking-[0.25em] gap-3 flex-wrap shrink-0"
+          style={{ borderColor: `${theme.primary}22` }}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              onMouseEnter={() => SFX.hover()}
+              onClick={() => {
+                SFX.buttonPress();
+                if (ambientOn) SFX.stopAmbient();
+                wakeRecRef.current?.stop();
+                navigate({ to: "/" });
+              }}
+              className="flex items-center gap-2 transition-all"
+              style={{ color: theme.primary }}
+            >
+              <span>◄</span>
+              <span className="tracking-[0.3em]">VOLTAR</span>
+            </button>
+            <span className="text-slate-600 hidden md:inline">|</span>
+            <span className="tabular-nums hidden md:inline" style={{ color: `${theme.primary}88` }}>
+              {time.toLocaleTimeString("pt-BR")}
+            </span>
+          </div>
 
-      {booted && (
-        <div className="absolute top-32 right-6 z-20 hidden lg:block">
-          <Radar color={theme.primary} />
-        </div>
-      )}
-
-      <motion.header
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.3 }}
-        className="relative z-20 p-4 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
-        style={{ borderColor: `${theme.primary}33` }}
-      >
-        <div className="max-w-7xl mx-auto flex justify-between items-center gap-4 flex-wrap">
-          <motion.button
-            whileHover={{ x: -4 }}
-            onMouseEnter={() => SFX.hover()}
-            onClick={() => {
-              SFX.buttonPress();
-              if (ambientOn) SFX.stopAmbient();
-              wakeRecRef.current?.stop();
-              navigate({ to: "/" });
-            }}
-            className="flex items-center gap-3 font-orbitron tracking-widest transition"
-            style={{ color: theme.primary, textShadow: `0 0 10px ${theme.primary}` }}
-          >
-            <span className="text-lg">◄</span>
-            <span>VOLTAR</span>
-          </motion.button>
-
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* PERSONA */}
             <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onMouseEnter={() => SFX.hover()}
-                onClick={() => {
-                  const next = !personaMenuOpen;
-                  setPersonaMenuOpen(next);
-                  setModeMenuOpen(false);
-                  if (next) SFX.menuOpen();
-                  else SFX.menuClose();
-                }}
-                className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-2"
-                style={{
-                  borderColor: `${theme.primary}88`,
-                  color: theme.primary,
-                  background: theme.bg,
-                  boxShadow: `0 0 15px ${theme.glow}`,
-                }}
+                onClick={() => { SFX.menuOpen(); setPersonaOpen((v) => !v); setModeOpen(false); }}
+                className="flex items-center gap-2 px-2 py-1 transition-all"
+                style={{ color: theme.primary, borderBottom: `1px solid ${theme.primary}66` }}
               >
-                {theme.emoji} {theme.name}
-                <motion.span animate={{ rotate: personaMenuOpen ? 180 : 0 }} className="text-[8px]">
-                  ▼
-                </motion.span>
-              </motion.button>
+                <span className="w-1 h-1" style={{ background: theme.primary }} />
+                <span>{currentPersona.label}</span>
+                <span style={{ color: `${theme.primary}66` }}>[{currentPersona.code}]</span>
+              </button>
               <AnimatePresence>
-                {personaMenuOpen && (
+                {personaOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full mt-2 right-0 z-[100] bg-slate-950/95 border border-cyan-500/30 rounded-lg p-2 min-w-[240px] backdrop-blur-xl shadow-2xl"
+                    exit={{ opacity: 0, y: -6 }}
+                    className="absolute top-full right-0 mt-1 z-[100] border min-w-[200px]"
+                    style={{ background: "#05070d", borderColor: `${theme.primary}44` }}
                   >
-                    <div className="text-[9px] tracking-widest text-slate-500 font-mono px-3 py-1 mb-1">
-                      ▸ PERSONA
-                    </div>
                     {PERSONAS_LIST.map((p) => {
-                      const pT = THEMES[p.id];
+                      const pt = THEMES[p.id];
                       const active = persona === p.id;
                       return (
                         <button
                           key={p.id}
                           onMouseEnter={() => SFX.hover()}
-                          onClick={() => {
-                            setPersona(p.id);
-                            SFX.personaSwitch();
-                            setPersonaMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded transition flex items-start gap-3 mb-1 ${
-                            active ? "bg-slate-800/80" : "hover:bg-slate-800/60"
-                          }`}
+                          onClick={() => switchPersona(p.id)}
+                          className="w-full text-left px-3 py-2 text-[10px] font-mono tracking-widest transition-all flex items-center gap-2"
                           style={{
-                            borderLeft: active ? `3px solid ${pT.primary}` : "3px solid transparent",
+                            color: active ? pt.primary : `${theme.primary}99`,
+                            background: active ? `${pt.primary}11` : "transparent",
+                            borderLeft: active ? `2px solid ${pt.primary}` : "2px solid transparent",
                           }}
                         >
-                          <span className="text-lg" style={{ color: pT.primary }}>
-                            {pT.emoji}
-                          </span>
-                          <div className="flex-1">
-                            <div className="text-xs font-bold tracking-widest" style={{ color: pT.primary }}>
-                              {p.label}
-                            </div>
-                            <div className="text-[9px] text-slate-500 mt-0.5">{p.desc}</div>
-                          </div>
-                          {active && (
-                            <span className="text-[10px]" style={{ color: pT.primary }}>
-                              ●
-                            </span>
-                          )}
+                          <span>{active ? "●" : "○"}</span>
+                          <span className="flex-1">{p.label}</span>
+                          <span style={{ color: `${pt.primary}66` }}>{p.code}</span>
                         </button>
                       );
                     })}
@@ -639,74 +569,43 @@ export function ChatPage() {
               </AnimatePresence>
             </div>
 
+            {/* MODO */}
             <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onMouseEnter={() => SFX.hover()}
-                onClick={() => {
-                  const next = !modeMenuOpen;
-                  setModeMenuOpen(next);
-                  setPersonaMenuOpen(false);
-                  if (next) SFX.menuOpen();
-                  else SFX.menuClose();
-                }}
-                className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-2"
-                style={{
-                  borderColor: `${currentMode.color}88`,
-                  color: currentMode.color,
-                  background: `${currentMode.color}11`,
-                }}
+                onClick={() => { SFX.menuOpen(); setModeOpen((v) => !v); setPersonaOpen(false); }}
+                className="flex items-center gap-2 px-2 py-1 transition-all"
+                style={{ color: currentMode.color, borderBottom: `1px solid ${currentMode.color}66` }}
               >
-                {currentMode.emoji} {currentMode.name}
-                <motion.span animate={{ rotate: modeMenuOpen ? 180 : 0 }} className="text-[8px]">
-                  ▼
-                </motion.span>
-              </motion.button>
+                <span className="w-1 h-1" style={{ background: currentMode.color }} />
+                <span>{currentMode.emoji} {currentMode.name}</span>
+              </button>
               <AnimatePresence>
-                {modeMenuOpen && (
+                {modeOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full mt-2 right-0 z-[100] bg-slate-950/95 border border-cyan-500/30 rounded-lg p-2 min-w-[240px] backdrop-blur-xl shadow-2xl"
+                    exit={{ opacity: 0, y: -6 }}
+                    className="absolute top-full right-0 mt-1 z-[100] border min-w-[220px]"
+                    style={{ background: "#05070d", borderColor: `${theme.primary}44` }}
                   >
-                    <div className="text-[9px] tracking-widest text-slate-500 font-mono px-3 py-1 mb-1">
-                      ▸ MODO DE RACIOCÍNIO
-                    </div>
                     {Object.values(MODES).map((m) => {
                       const active = mode === m.id;
                       return (
                         <button
                           key={m.id}
                           onMouseEnter={() => SFX.hover()}
-                          onClick={() => {
-                            setMode(m.id);
-                            saveMode(m.id);
-                            SFX.modeSwitch();
-                            setModeMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded transition flex items-start gap-3 mb-1 ${
-                            active ? "bg-slate-800/80" : "hover:bg-slate-800/60"
-                          }`}
+                          onClick={() => switchMode(m.id)}
+                          className="w-full text-left px-3 py-2 text-[10px] font-mono tracking-widest transition-all flex items-center gap-2"
                           style={{
-                            borderLeft: active ? `3px solid ${m.color}` : "3px solid transparent",
+                            color: active ? m.color : `${theme.primary}99`,
+                            background: active ? `${m.color}11` : "transparent",
+                            borderLeft: active ? `2px solid ${m.color}` : "2px solid transparent",
                           }}
                         >
-                          <span className="text-lg" style={{ color: m.color }}>
-                            {m.emoji}
-                          </span>
-                          <div className="flex-1">
-                            <div className="text-xs font-bold tracking-widest" style={{ color: m.color }}>
-                              {m.name}
-                            </div>
-                            <div className="text-[9px] text-slate-500 mt-0.5">{m.desc}</div>
-                          </div>
-                          {active && (
-                            <span className="text-[10px]" style={{ color: m.color }}>
-                              ●
-                            </span>
-                          )}
+                          <span>{m.emoji}</span>
+                          <span className="flex-1">{m.name}</span>
+                          <span style={{ color: `${m.color}66` }} className="text-[8px]">{m.desc}</span>
                         </button>
                       );
                     })}
@@ -715,253 +614,286 @@ export function ChatPage() {
               </AnimatePresence>
             </div>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            {/* ÍCONES */}
+            <button
               onMouseEnter={() => SFX.hover()}
               onClick={toggleAmbient}
-              className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition"
+              className="px-2 py-1 border transition-all"
               style={{
-                borderColor: ambientOn ? theme.primary : `${theme.primary}55`,
-                color: theme.primary,
-                background: ambientOn ? theme.bg : "transparent",
+                borderColor: ambientOn ? theme.primary : `${theme.primary}33`,
+                color: ambientOn ? theme.primary : `${theme.primary}88`,
+                background: ambientOn ? `${theme.primary}11` : "transparent",
               }}
+              title="Som ambiente"
             >
-              {ambientOn ? "🔊" : "🔇"}
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              {ambientOn ? "◉" : "○"}
+            </button>
+            <button
               onMouseEnter={() => SFX.hover()}
               onClick={toggleWakeMode}
-              className={`px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-1.5 ${
-                wakeMode ? "animate-pulse" : ""
-              }`}
+              className={`px-2 py-1 border transition-all ${wakeMode ? "animate-pulse" : ""}`}
               style={{
-                borderColor: wakeMode ? "#ef4444" : `${theme.primary}55`,
-                color: wakeMode ? "#ef4444" : theme.primary,
-                background: wakeMode ? "rgba(239,68,68,0.1)" : "transparent",
+                borderColor: wakeMode ? "#ef4444" : `${theme.primary}33`,
+                color: wakeMode ? "#ef4444" : `${theme.primary}88`,
+                background: wakeMode ? "#ef444411" : "transparent",
               }}
+              title="Wake word"
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${wakeMode ? "bg-red-400" : "bg-slate-600"}`} />
-              {wakeMode ? "WAKE" : "OFF"}
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              ◈
+            </button>
+            <button
               onMouseEnter={() => SFX.hover()}
               onClick={() => {
                 SFX.buttonPress();
-                if (!document.fullscreenElement) {
-                  document.documentElement.requestFullscreen();
-                  setFullscreen(true);
-                } else {
-                  document.exitFullscreen();
-                  setFullscreen(false);
-                }
+                if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setFullscreen(true); }
+                else { document.exitFullscreen(); setFullscreen(false); }
               }}
-              className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition"
-              style={{ borderColor: `${theme.primary}55`, color: theme.primary }}
+              className="px-2 py-1 border transition-all"
+              style={{ borderColor: `${theme.primary}33`, color: `${theme.primary}88` }}
+              title="Tela cheia"
             >
-              {fullscreen ? "⛶ EXIT" : "⛶ FULL"}
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              ⛶
+            </button>
+            <button
               onMouseEnter={() => SFX.hover()}
-              onClick={() => {
-                SFX.menuOpen();
-                setMemoryOpen(true);
-              }}
-              className="px-3 py-1.5 rounded border text-[10px] tracking-widest font-mono transition flex items-center gap-2"
-              style={{ borderColor: `${theme.primary}88`, color: theme.primary, background: theme.bg }}
+              onClick={() => { SFX.menuOpen(); setMemoryOpen(true); }}
+              className="px-2 py-1 border transition-all flex items-center gap-1.5"
+              style={{ borderColor: `${theme.primary}33`, color: `${theme.primary}88` }}
+              title="Memória"
             >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }}
-              />
-              {facts.length}
-            </motion.button>
+              ◐ {facts.length}
+            </button>
           </div>
-        </div>
-      </motion.header>
+        </motion.header>
 
-      {wakeMode && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative z-10 text-center py-2"
-        >
+        {/* MAIN GRID */}
+        <div className="flex-1 grid grid-cols-12 gap-0 min-h-0">
+          {/* LEFT RAIL — histórico compacto */}
           <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border"
-            style={{ background: "rgba(239,68,68,0.1)", borderColor: "rgba(239,68,68,0.3)" }}
+            className="col-span-12 lg:col-span-2 border-r flex flex-col min-h-0 hidden lg:flex"
+            style={{ borderColor: `${theme.primary}22` }}
           >
-            <motion.div
-              animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="w-2 h-2 rounded-full bg-red-400 shadow-[0_0_10px_#ef4444]"
-            />
-            <span className="font-orbitron text-[10px] tracking-[0.4em] text-red-300">
-              DIGA "{theme.name.replace(/\./g, "")}" PARA ATIVAR
-            </span>
+            <div className="px-3 py-2 border-b font-mono text-[9px] tracking-[0.3em]" style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}>
+              // SESSÃO
+            </div>
+            <div className="px-3 py-3 space-y-3 font-mono text-[10px] flex-1 overflow-y-auto">
+              <div>
+                <div className="tracking-widest mb-1" style={{ color: `${theme.primary}66` }}>STATUS</div>
+                <div className="flex items-center gap-2" style={{ color: theme.primary }}>
+                  <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary }} />
+                  {state === "idle" ? "AGUARDANDO" : state === "thinking" ? `PENSANDO ${elapsed.toFixed(1)}s` : "FALANDO"}
+                </div>
+              </div>
+              <div>
+                <div className="tracking-widest mb-1" style={{ color: `${theme.primary}66` }}>MODO</div>
+                <div style={{ color: currentMode.color }}>{currentMode.emoji} {currentMode.name}</div>
+              </div>
+              <div>
+                <div className="tracking-widest mb-1" style={{ color: `${theme.primary}66` }}>THREAD</div>
+                <div className="truncate" style={{ color: `${theme.primary}cc` }}>{threadId.slice(0, 8)}</div>
+              </div>
+              <div>
+                <div className="tracking-widest mb-1" style={{ color: `${theme.primary}66` }}>MSGS</div>
+                <div className="tabular-nums" style={{ color: `${theme.primary}cc` }}>{String(messages.length).padStart(3, "0")}</div>
+              </div>
+              <div className="pt-3 border-t" style={{ borderColor: `${theme.primary}22` }}>
+                <div className="tracking-widest mb-2" style={{ color: `${theme.primary}66` }}>ATALHOS</div>
+                <div className="space-y-1" style={{ color: `${theme.primary}66` }}>
+                  <div className="flex justify-between"><span>↑</span><span>histórico</span></div>
+                  <div className="flex justify-between"><span>Ctrl+K</span><span>nova</span></div>
+                  <div className="flex justify-between"><span>Ctrl+M</span><span>modo</span></div>
+                  <div className="flex justify-between"><span>F11</span><span>tela cheia</span></div>
+                </div>
+              </div>
+            </div>
           </div>
-        </motion.div>
-      )}
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.7 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1, delay: 0.5 }}
-        className="py-6 relative z-10"
-      >
-        <ArcReactor state={state} color={theme.primary} />
-      </motion.div>
-
-      <AnimatePresence mode="wait">
-        {state === "thinking" && !streamingText && (
-          <motion.div
-            key="thinking"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="text-center relative z-10 -mt-4 mb-2"
-          >
-            <div
-              className="inline-flex items-center gap-3 px-5 py-2 rounded-full border backdrop-blur-sm"
-              style={{ background: theme.bg, borderColor: `${theme.primary}55` }}
+          {/* CENTER — reator + conversa */}
+          <div className="col-span-12 lg:col-span-8 flex flex-col min-h-0 relative">
+            {/* Reator (INTOCADO) */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: booted ? 1 : 0, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="py-6 shrink-0 relative"
             >
-              <div className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <motion.div
-                    key={i}
-                    animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
-                    transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }}
-                  />
+              <ArcReactor state={state} color={theme.primary} />
+            </motion.div>
+
+            {/* Divider com label */}
+            <div
+              className="px-6 py-1.5 border-y font-mono text-[9px] tracking-[0.3em] flex items-center justify-between shrink-0"
+              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66`, background: "rgba(5,7,13,0.5)" }}
+            >
+              <span>// 02 · REGISTRO DE CONVERSA</span>
+              <span className="tabular-nums">{messages.length} ENTRIES</span>
+            </div>
+
+            {/* Mensagens */}
+            <main className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+              <Conversation messages={messages} streamingText={streamingText} />
+            </main>
+          </div>
+
+          {/* RIGHT RAIL — telemetria */}
+          <div
+            className="col-span-12 lg:col-span-2 border-l flex flex-col min-h-0 hidden lg:flex"
+            style={{ borderColor: `${theme.primary}22` }}
+          >
+            <div className="px-3 py-2 border-b font-mono text-[9px] tracking-[0.3em]" style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}>
+              // TELEMETRIA
+            </div>
+            <div className="px-3 py-3 space-y-3 font-mono text-[10px] flex-1 overflow-y-auto">
+              <div>
+                <div className="tracking-widest mb-2" style={{ color: `${theme.primary}66` }}>SISTEMA</div>
+                {[
+                  { l: "CPU", v: 43, c: theme.primary },
+                  { l: "MEM", v: 67, c: theme.accent },
+                  { l: "NET", v: 82, c: theme.primary },
+                ].map((m) => (
+                  <div key={m.l} className="flex items-center gap-2 mb-1.5">
+                    <span className="w-7 text-[9px]" style={{ color: `${theme.primary}88` }}>{m.l}</span>
+                    <div className="flex-1 h-px" style={{ background: `${theme.primary}22` }}>
+                      <motion.div
+                        className="h-full"
+                        style={{ background: m.c, boxShadow: `0 0 4px ${m.c}` }}
+                        animate={{ width: `${m.v}%` }}
+                        transition={{ duration: 1 }}
+                      />
+                    </div>
+                    <span className="text-[9px] tabular-nums w-6 text-right" style={{ color: m.c }}>{m.v}</span>
+                  </div>
                 ))}
               </div>
-              <span
-                className="font-orbitron text-[10px] tracking-[0.3em]"
-                style={{ color: theme.primary }}
-              >
-                {currentMode.emoji} {currentMode.name} · {elapsed.toFixed(1)}s
-              </span>
+
+              <div className="pt-3 border-t" style={{ borderColor: `${theme.primary}22` }}>
+                <div className="tracking-widest mb-2" style={{ color: `${theme.primary}66` }}>LOG</div>
+                <div className="space-y-1 text-[9px] leading-relaxed">
+                  {terminalLines.slice(-4).map((line, i) => (
+                    <div
+                      key={i}
+                      className="truncate"
+                      style={{ color: i === terminalLines.slice(-4).length - 1 ? theme.primary : `${theme.primary}55` }}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t" style={{ borderColor: `${theme.primary}22` }}>
+                <div className="tracking-widest mb-2" style={{ color: `${theme.primary}66` }}>MEMÓRIA</div>
+                <div className="text-[9px]" style={{ color: `${theme.primary}cc` }}>
+                  {facts.length} fatos
+                </div>
+                <button
+                  onMouseEnter={() => SFX.hover()}
+                  onClick={() => setMemoryOpen(true)}
+                  className="mt-1.5 w-full py-1 font-mono text-[9px] tracking-widest border transition-all"
+                  style={{ borderColor: `${theme.primary}33`, color: `${theme.primary}99` }}
+                >
+                  ABRIR
+                </button>
+              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
 
-      <main className="flex-1 overflow-y-auto pb-20 relative z-10">
-        <Conversation messages={messages} streamingText={streamingText} />
-      </main>
-
-      <motion.footer
-        initial={{ y: 50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, delay: 0.7 }}
-        className="relative z-20 p-4 border-t backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
-        style={{ borderColor: `${theme.primary}33` }}
-      >
+        {/* INDICADOR: aprendizado */}
         <AnimatePresence>
-          {state === "speaking" && (
+          {learnedIndicator && (
             <motion.div
-              key="wave"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 40 }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center justify-center gap-1 mb-2 overflow-hidden"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 40 }}
+              className="fixed top-24 right-12 z-[80] max-w-xs border"
+              style={{ background: "#05070d", borderColor: `${theme.primary}66`, boxShadow: `0 0 30px ${theme.glow}` }}
             >
-              {Array.from({ length: 32 }).map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="w-1 rounded-full"
-                  style={{ background: theme.primary, boxShadow: `0 0 6px ${theme.primary}` }}
-                  animate={{
-                    height: [
-                      `${20 + Math.random() * 30}%`,
-                      `${50 + Math.random() * 50}%`,
-                      `${30 + Math.random() * 40}%`,
-                      `${60 + Math.random() * 40}%`,
-                    ],
-                  }}
-                  transition={{
-                    duration: 0.4 + Math.random() * 0.3,
-                    repeat: Infinity,
-                    delay: i * 0.02,
-                  }}
-                />
-              ))}
+              <div className="px-3 py-1.5 border-b font-mono text-[9px] tracking-widest flex items-center gap-2" style={{ borderColor: `${theme.primary}33`, color: theme.primary }}>
+                <motion.span className="w-1.5 h-1.5" style={{ background: theme.primary }} animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.5, repeat: Infinity }} />
+                MEMÓRIA ATUALIZADA
+              </div>
+              <div className="px-3 py-2 font-mono text-[10px] text-slate-300 leading-snug">
+                {learnedIndicator}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <PromptInput
-          onSend={send}
-          listening={listening}
-          onToggleMic={toggleListening}
-          disabled={state === "thinking"}
-          onHistory={navigateHistory}
-          primaryColor={theme.primary}
-        />
-      </motion.footer>
-    </div>
-  );
-}
+        {/* INDICADOR: wake */}
+        <AnimatePresence>
+          {wakeDetected && (
+            <motion.div
+              key="wake"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.5 }}
+              className="fixed top-1/4 left-1/2 -translate-x-1/2 z-[90] pointer-events-none"
+            >
+              <div
+                className="font-orbitron text-xl tracking-[0.5em] px-6 py-3 border"
+                style={{
+                  color: theme.primary,
+                  borderColor: theme.primary,
+                  background: "rgba(5,7,13,0.9)",
+                  textShadow: `0 0 20px ${theme.primary}`,
+                  boxShadow: `0 0 40px ${theme.glow}`,
+                }}
+              >
+                ◉ {currentPersona.label}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-function StatusBar({ label, color }: { label: string; color: string }) {
-  const [value, setValue] = useState(20 + Math.random() * 60);
-  useEffect(() => {
-    const i = setInterval(
-      () => setValue((v) => Math.max(15, Math.min(95, v + (Math.random() - 0.5) * 8))),
-      1500
-    );
-    return () => clearInterval(i);
-  }, []);
-  return (
-    <div className="w-32">
-      <div className="flex justify-between text-[9px] font-mono tracking-widest" style={{ color }}>
-        <span>{label}</span>
-        <span>{value.toFixed(0)}%</span>
-      </div>
-      <div className="h-1 bg-slate-900 rounded-sm mt-0.5 overflow-hidden">
+        {/* PromptInput */}
+        <motion.footer
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="border-t px-6 py-3 shrink-0"
+          style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.6)" }}
+        >
+          <div className="max-w-4xl mx-auto">
+            <PromptInput
+              onSend={send}
+              listening={listening}
+              onToggleMic={toggleListening}
+              disabled={state === "thinking"}
+              onHistory={navigateHistory}
+              primaryColor={theme.primary}
+            />
+          </div>
+        </motion.footer>
+
+        {/* Bottom bar */}
         <motion.div
-          className="h-full"
-          style={{ background: color, boxShadow: `0 0 8px ${color}` }}
-          animate={{ width: `${value}%` }}
-          transition={{ duration: 0.8 }}
-        />
+          initial={{ opacity: 0 }}
+          animate={{ opacity: booted ? 1 : 0 }}
+          transition={{ delay: 0.8 }}
+          className="border-t px-6 py-1.5 flex items-center justify-between font-mono text-[9px] tracking-[0.25em] shrink-0"
+          style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}55`, background: "rgba(5,7,13,0.8)" }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
+            <span>PROCESSANDO ATIVO</span>
+          </div>
+          <div className="hidden md:flex items-center gap-3">
+            <span>◈ {currentPersona.code}</span>
+            <span>◈ {currentMode.emoji} {currentMode.name}</span>
+          </div>
+          <span>SEC-7G · v2.0.4</span>
+        </motion.div>
       </div>
-    </div>
-  );
-}
 
-function Radar({ color }: { color: string }) {
-  return (
-    <div className="w-28 h-28 relative">
-      {[0, 3, 6, 9, 12].map((i) => (
-        <div
-          key={i}
-          className="absolute rounded-full border"
-          style={{ inset: `${i}px`, borderColor: `${color}40` }}
-        />
-      ))}
-      <div
-        className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+      {/* Memory panel */}
+      <MemoryPanel
+        open={memoryOpen}
+        onClose={() => { SFX.menuClose(); setMemoryOpen(false); }}
+        facts={facts}
+        onFactsChange={setFacts}
+        userId={user?.id ?? ""}
       />
-      <div className="radar-sweep absolute inset-0">
-        <div
-          className="absolute top-1/2 left-1/2 w-14 h-px origin-left"
-          style={{
-            background: `linear-gradient(90deg, ${color}, transparent)`,
-            transform: "translateY(-50%)",
-          }}
-        />
-      </div>
     </div>
   );
 }
