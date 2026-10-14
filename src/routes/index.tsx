@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabase";
@@ -8,13 +8,22 @@ import { MouseTrail } from "../components/jarvis/MouseTrail";
 import { SFX } from "../lib/sfx";
 import { THEMES, applyTheme, loadPersona, type Persona } from "../lib/theme";
 
+type Thread = {
+  id: string;
+  title: string;
+  updated_at: string;
+};
+
 export function HomePage() {
   const { user } = useJarvis();
   const navigate = useNavigate();
-  const [threads, setThreads] = useState<any[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [booted, setBooted] = useState(false);
   const [time, setTime] = useState(new Date());
   const [persona, setPersona] = useState<Persona>("jarvis");
+  const [quickCommand, setQuickCommand] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const theme = THEMES[persona];
 
@@ -37,23 +46,35 @@ export function HomePage() {
   useEffect(() => {
     supabase
       .from("threads")
-      .select("*")
+      .select("id, title, updated_at")
       .order("updated_at", { ascending: false })
       .then(({ data }) => setThreads(data ?? []));
   }, []);
 
-  const newThread = async () => {
+  const newThread = async (firstMessage?: string) => {
     SFX.reactorEngage();
     const { data, error } = await supabase
       .from("threads")
-      .insert({ user_id: user.id, title: "Nova conversa" })
+      .insert({
+        user_id: user.id,
+        title: firstMessage ? firstMessage.slice(0, 40) : "Nova conversa",
+      })
       .select()
       .single();
     if (error) return alert(error.message);
-    navigate({ to: "/chat/$threadId", params: { threadId: data.id } });
+    navigate({
+      to: "/chat/$threadId",
+      params: { threadId: data.id },
+      search: firstMessage ? { q: firstMessage } : undefined,
+    } as any);
   };
 
-  const remove = async (id: string, e: React.MouseEvent) => {
+  const handleQuickSend = () => {
+    if (!quickCommand.trim()) return;
+    newThread(quickCommand.trim());
+  };
+
+  const removeThread = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Apagar esta conversa?")) return;
     await supabase.from("threads").delete().eq("id", id);
@@ -61,41 +82,61 @@ export function HomePage() {
     SFX.error();
   };
 
+  const quickActions = [
+    { icon: "🧠", label: "Explique algo", prompt: "Me explique detalhadamente sobre " },
+    { icon: "✍️", label: "Escrever texto", prompt: "Escreva um texto sobre " },
+    { icon: "💻", label: "Código", prompt: "Escreva um código que " },
+    { icon: "🔍", label: "Pesquisar", prompt: "Pesquise na internet sobre " },
+    { icon: "🎨", label: "Ideias criativas", prompt: "Me dê 5 ideias criativas sobre " },
+    { icon: "📊", label: "Analisar", prompt: "Analise os prós e contras de " },
+  ];
+
   return (
     <div className="min-h-screen text-slate-100 relative overflow-hidden bg-slate-950">
       <div className="scanline" />
       <MouseTrail />
 
+      {/* Aurora de fundo */}
+      <motion.div
+        className="fixed -top-1/2 -left-1/4 w-[150vmax] h-[150vmax] rounded-full pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, ${theme.glow} 0%, transparent 60%)`,
+          filter: "blur(80px)",
+          opacity: 0.15,
+        }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+      />
+
       {/* Grid de fundo */}
       <div
-        className="fixed inset-0 pointer-events-none z-0 opacity-20"
+        className="fixed inset-0 pointer-events-none z-0 opacity-[0.08]"
         style={{
-          backgroundImage: `linear-gradient(${theme.primary}22 1px, transparent 1px), linear-gradient(90deg, ${theme.primary}22 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
+          backgroundImage: `linear-gradient(${theme.primary} 1px, transparent 1px), linear-gradient(90deg, ${theme.primary} 1px, transparent 1px)`,
+          backgroundSize: "50px 50px",
         }}
       />
 
-      {/* Aura central */}
+      {/* Scanline vertical */}
       <motion.div
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-colors duration-700"
+        className="fixed top-0 bottom-0 w-px pointer-events-none z-[1]"
         style={{
-          width: "100vmin",
-          height: "100vmin",
-          background: `radial-gradient(circle, ${theme.bg} 0%, transparent 60%)`,
-          filter: "blur(60px)",
-          zIndex: 1,
+          background: `linear-gradient(180deg, transparent, ${theme.primary}, transparent)`,
+          boxShadow: `0 0 20px ${theme.primary}`,
+          opacity: 0.3,
         }}
-        animate={{ scale: [1, 1.15, 1], opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        animate={{ left: ["0%", "100%"] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
       />
 
-      {/* Boot */}
+      {/* Boot sequence */}
       <AnimatePresence>
         {!booted && (
           <motion.div
             key="boot"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.8 }}
             className="fixed inset-0 z-[500] bg-slate-950 flex items-center justify-center"
           >
             <div className="text-center">
@@ -131,389 +172,445 @@ export function HomePage() {
       {/* Cantos HUD */}
       {booted && (
         <>
-          <div
-            className="fixed top-3 left-3 w-10 h-10 border-t-2 border-l-2 z-30 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-          <div
-            className="fixed top-3 right-3 w-10 h-10 border-t-2 border-r-2 z-30 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-          <div
-            className="fixed bottom-3 left-3 w-10 h-10 border-b-2 border-l-2 z-30 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
-          <div
-            className="fixed bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 z-30 pointer-events-none"
-            style={{ borderColor: `${theme.primary}99` }}
-          />
+          <div className="fixed top-3 left-3 w-10 h-10 border-t-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed top-3 right-3 w-10 h-10 border-t-2 border-r-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed bottom-3 left-3 w-10 h-10 border-b-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
+          <div className="fixed bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}99` }} />
         </>
       )}
 
-      <div className="relative z-10">
-        {/* Header */}
-        <motion.header
-          initial={{ y: -80, opacity: 0 }}
-          animate={{ y: booted ? 0 : -80, opacity: booted ? 1 : 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="p-5 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
+      {/* ============================================ */}
+      {/* LAYOUT PRINCIPAL */}
+      {/* ============================================ */}
+      <div className="relative z-10 flex h-screen">
+        {/* ============================================ */}
+        {/* SIDEBAR ESQUERDO — conversas */}
+        {/* ============================================ */}
+        <motion.aside
+          initial={{ width: 0, opacity: 0 }}
+          animate={{
+            width: booted ? (sidebarOpen ? 280 : 60) : 0,
+            opacity: booted ? 1 : 0,
+          }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="border-r backdrop-blur-xl bg-slate-950/60 flex flex-col overflow-hidden transition-colors duration-700 shrink-0"
           style={{ borderColor: `${theme.primary}33` }}
         >
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="flex items-center gap-4">
+          {/* Logo + toggle */}
+          <div className="p-4 flex items-center justify-between shrink-0 border-b" style={{ borderColor: `${theme.primary}22` }}>
+            {sidebarOpen ? (
+              <div className="flex items-center gap-3 min-w-0">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                  className="w-8 h-8 rounded-full border-2 relative shrink-0"
+                  style={{ borderColor: theme.primary, borderTopColor: "transparent" }}
+                >
+                  <div className="absolute inset-1 rounded-full border" style={{ borderColor: `${theme.primary}66`, borderBottomColor: "transparent" }} />
+                </motion.div>
+                <div className="min-w-0">
+                  <div className="font-orbitron text-xs tracking-[0.2em] truncate" style={{ color: theme.primary }}>
+                    {theme.name}
+                  </div>
+                  <div className="text-[8px] font-mono text-slate-500 tracking-widest">
+                    v2.0.4
+                  </div>
+                </div>
+              </div>
+            ) : (
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                className="w-9 h-9 rounded-full border-2 relative"
+                className="w-8 h-8 rounded-full border-2 mx-auto"
                 style={{ borderColor: theme.primary, borderTopColor: "transparent" }}
-              >
-                <div
-                  className="absolute inset-1 rounded-full border"
-                  style={{ borderColor: `${theme.primary}66`, borderBottomColor: "transparent" }}
-                />
-              </motion.div>
-              <div>
-                <h1
-                  className="font-orbitron text-xl md:text-2xl tracking-[0.3em]"
-                  style={{ color: theme.primary, textShadow: `0 0 20px ${theme.primary}` }}
-                >
-                  {theme.name}
-                </h1>
-                <div
-                  className="text-[8px] font-mono tracking-[0.4em]"
-                  style={{ color: `${theme.primary}88` }}
-                >
-                  SISTEMA v2.0.4
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 items-center text-xs font-mono">
-              <div
-                className="hidden lg:flex items-center gap-2 text-slate-400 px-3 py-1.5 rounded border bg-slate-950/50"
-                style={{ borderColor: `${theme.primary}33` }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]" />
-                <span className="text-emerald-300">{user.email}</span>
-              </div>
-              <div
-                className="hidden md:block tabular-nums text-xs font-mono"
-                style={{ color: `${theme.primary}99` }}
-              >
-                {time.toLocaleTimeString("pt-BR")}
-              </div>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate({ to: "/configuraciones" })}
-                className="px-3 py-1.5 rounded border transition-colors"
-                style={{ borderColor: `${theme.primary}55`, color: theme.primary }}
-              >
-                ⚙
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => supabase.auth.signOut()}
-                className="px-3 py-1.5 rounded border border-red-500/30 text-red-300 hover:border-red-400 hover:bg-red-500/10 transition"
-              >
-                SAIR
-              </motion.button>
-            </div>
-          </div>
-        </motion.header>
-
-        {/* Título */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 30 }}
-          transition={{ duration: 1, delay: 0.4 }}
-          className="pt-12 pb-4 text-center"
-        >
-          <div
-            className="text-[10px] tracking-[0.6em] font-mono mb-4"
-            style={{ color: `${theme.primary}99` }}
-          >
-            ▸ SISTEMA ONLINE · AGUARDANDO COMANDO
-          </div>
-
-          {/* TÍTULO SVG — CORRIGIDO E GARANTIDO */}
-          <div className="flex justify-center px-4 w-full">
-            <svg
-              viewBox="0 0 1200 140"
-              className="w-full max-w-5xl"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <defs>
-                <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor={theme.primary} />
-                  <stop offset="50%" stopColor={theme.accent} />
-                  <stop offset="100%" stopColor={theme.primary} />
-                  <animate
-                    attributeName="x1"
-                    values="0%;-100%;0%"
-                    dur="4s"
-                    repeatCount="indefinite"
-                  />
-                  <animate
-                    attributeName="x2"
-                    values="100%;0%;100%"
-                    dur="4s"
-                    repeatCount="indefinite"
-                  />
-                </linearGradient>
-                <filter id="titleGlow" x="-10%" y="-10%" width="120%" height="120%">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-              <text
-                x="600"
-                y="75"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontFamily="Orbitron, sans-serif"
-                fontSize="72"
-                fontWeight="700"
-                letterSpacing="2"
-                textLength="1120"
-                lengthAdjust="spacingAndGlyphs"
-                fill="url(#titleGrad)"
-                filter="url(#titleGlow)"
-              >
-                BEM-VINDO DE VOLTA
-              </text>
-            </svg>
-          </div>
-
-          <div className="text-sm md:text-base text-slate-400 mt-4 tracking-[0.3em] font-mono">
-            COMO POSSO AJUDAR, SENHOR?
-          </div>
-        </motion.div>
-
-        {/* Capacete */}
-        <div className="relative py-4 z-10">
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <motion.div
-                key={i}
-                className="absolute rounded-full transition-colors duration-700"
-                style={{
-                  width: `${320 + i * 140}px`,
-                  height: `${320 + i * 140}px`,
-                  border: `1px solid ${theme.primary}20`,
-                }}
-                animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
-                transition={{ duration: 30 + i * 12, repeat: Infinity, ease: "linear" }}
-              >
-                <div
-                  className="absolute w-1.5 h-1.5 rounded-full"
-                  style={{
-                    top: "50%",
-                    left: i % 2 === 0 ? "-3px" : "calc(100% - 3px)",
-                    background: i % 3 === 0 ? theme.accent : theme.primary,
-                    boxShadow: `0 0 12px ${i % 3 === 0 ? theme.accent : theme.primary}`,
-                  }}
-                />
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.7, y: 40 }}
-            animate={{ opacity: booted ? 1 : 0, scale: 1.1, y: 0 }}
-            transition={{ duration: 1.2, delay: 0.6 }}
-            className="relative"
-          >
-            <IronManHelmet state="idle" />
-          </motion.div>
-        </div>
-
-        {/* Cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 30 }}
-          transition={{ duration: 0.8, delay: 1 }}
-          className="max-w-6xl mx-auto px-6 mb-16"
-        >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              {
-                label: "HORA LOCAL",
-                value: time.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-                color: theme.primary,
-              },
-              { label: "OPERADOR", value: user.email.split("@")[0], color: theme.accent },
-              { label: "CONVERSAS", value: threads.length, color: theme.primary },
-              { label: "STATUS", value: "ONLINE", color: "#10b981" },
-            ].map((c) => (
-              <motion.div
-                key={c.label}
-                whileHover={{ y: -4 }}
-                className="relative p-4 rounded-lg border backdrop-blur-md"
-                style={{
-                  borderColor: `${c.color}66`,
-                  background: "rgba(2, 6, 23, 0.6)",
-                  boxShadow: `0 0 25px ${c.color}33`,
-                }}
-              >
-                <div
-                  className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2"
-                  style={{ borderColor: c.color }}
-                />
-                <div
-                  className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2"
-                  style={{ borderColor: c.color }}
-                />
-                <div
-                  className="text-[9px] tracking-[0.3em] font-mono mb-1.5"
-                  style={{ color: c.color }}
-                >
-                  {c.label}
-                </div>
-                <div
-                  className="font-orbitron text-base md:text-lg truncate"
-                  style={{ color: c.color, textShadow: `0 0 10px ${c.color}80` }}
-                >
-                  {c.value}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Lista de conversas */}
-        <motion.main
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 30 }}
-          transition={{ duration: 0.8, delay: 1.2 }}
-          className="max-w-6xl mx-auto px-6 pb-32"
-        >
-          <div className="flex justify-between items-end mb-8 flex-wrap gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <motion.div
-                  animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.3, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: theme.primary, boxShadow: `0 0 12px ${theme.primary}` }}
-                />
-                <h2
-                  className="font-orbitron text-sm tracking-[0.5em]"
-                  style={{ color: `${theme.primary}cc`, textShadow: `0 0 10px ${theme.primary}` }}
-                >
-                  HISTÓRICO
-                </h2>
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-2 ml-5 tracking-widest">
-                {threads.length} {threads.length === 1 ? "REGISTRO" : "REGISTROS"}
-              </div>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={newThread}
-              className="px-7 py-3 rounded-lg font-orbitron text-xs tracking-[0.25em] text-slate-950 font-bold relative overflow-hidden transition-all"
-              style={{
-                background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.accent} 100%)`,
-                boxShadow: `0 0 30px ${theme.glow}`,
-              }}
-            >
-              <span className="relative z-10">+ NOVA CONVERSA</span>
-              <motion.div
-                className="absolute inset-0 bg-white/30"
-                initial={{ x: "-100%" }}
-                animate={{ x: "100%" }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "linear", repeatDelay: 1.5 }}
               />
-            </motion.button>
+            )}
+            <button
+              onMouseEnter={() => SFX.hover()}
+              onClick={() => {
+                SFX.buttonPress();
+                setSidebarOpen((v) => !v);
+              }}
+              className="w-6 h-6 rounded flex items-center justify-center text-[10px] border transition-all hover:bg-white/5 shrink-0"
+              style={{ borderColor: `${theme.primary}44`, color: theme.primary }}
+            >
+              {sidebarOpen ? "◄" : "►"}
+            </button>
           </div>
 
-          {threads.length === 0 ? (
-            <div
-              className="relative text-center py-20 border border-dashed rounded-2xl backdrop-blur-sm bg-slate-950/30"
-              style={{ borderColor: `${theme.primary}33` }}
-            >
-              <div
-                className="font-orbitron tracking-[0.4em] text-sm mb-3"
-                style={{ color: `${theme.primary}99` }}
+          {/* Botão nova conversa */}
+          {sidebarOpen && (
+            <div className="p-3 shrink-0">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onMouseEnter={() => SFX.hover()}
+                onClick={() => newThread()}
+                className="w-full py-2.5 rounded-lg font-orbitron text-[10px] tracking-[0.2em] text-slate-950 font-bold transition-all relative overflow-hidden"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.accent} 100%)`,
+                  boxShadow: `0 0 20px ${theme.glow}`,
+                }}
               >
-                NENHUMA CONVERSA REGISTRADA
+                <span className="relative z-10">+ NOVA CONVERSA</span>
+              </motion.button>
+            </div>
+          )}
+
+          {/* Lista de conversas */}
+          <div className="flex-1 overflow-y-auto px-2 pb-2">
+            {sidebarOpen ? (
+              threads.length === 0 ? (
+                <div className="text-center py-8 px-3">
+                  <div className="text-[9px] font-mono tracking-[0.3em] text-slate-600 mb-2">
+                    NENHUMA CONVERSA
+                  </div>
+                  <div className="text-[10px] text-slate-500 leading-relaxed">
+                    Comece uma nova conversa acima
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {threads.map((t, i) => (
+                    <motion.div
+                      key={t.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.4 + i * 0.03 }}
+                      onMouseEnter={() => SFX.hover()}
+                      onClick={() => {
+                        SFX.click();
+                        navigate({ to: "/chat/$threadId", params: { threadId: t.id } });
+                      }}
+                      className="group relative flex items-center justify-between p-2.5 rounded-lg cursor-pointer hover:bg-white/5 transition-all border border-transparent"
+                      style={{ borderColor: "transparent" }}
+                      onMouseOver={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = `${theme.primary}55`;
+                      }}
+                      onMouseOut={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = "transparent";
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ background: theme.primary, boxShadow: `0 0 6px ${theme.primary}` }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] text-slate-200 truncate">
+                            {t.title}
+                          </div>
+                          <div className="text-[8px] text-slate-600 font-mono tracking-widest mt-0.5">
+                            {new Date(t.updated_at).toLocaleDateString("pt-BR")}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => removeThread(t.id, e)}
+                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition p-1 text-[10px]"
+                      >
+                        ✕
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="space-y-1 mt-2">
+                {threads.slice(0, 8).map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => navigate({ to: "/chat/$threadId", params: { threadId: t.id } })}
+                    className="w-8 h-8 mx-auto rounded-lg border flex items-center justify-center cursor-pointer hover:bg-white/5 transition-all"
+                    style={{ borderColor: `${theme.primary}33` }}
+                    title={t.title}
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: theme.primary }} />
+                  </div>
+                ))}
               </div>
-              <div className="text-slate-500 text-sm tracking-wider">
-                Inicie uma nova conversa, senhor.
+            )}
+          </div>
+
+          {/* User + config */}
+          {sidebarOpen && (
+            <div className="p-3 border-t shrink-0" style={{ borderColor: `${theme.primary}22` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border"
+                  style={{ borderColor: `${theme.primary}55`, color: theme.primary }}
+                >
+                  {user.email.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] text-slate-300 truncate">
+                    {user.email.split("@")[0]}
+                  </div>
+                  <div className="text-[8px] font-mono text-emerald-400 tracking-widest flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                    ONLINE
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onMouseEnter={() => SFX.hover()}
+                  onClick={() => {
+                    SFX.buttonPress();
+                    navigate({ to: "/configuraciones" });
+                  }}
+                  className="flex-1 py-1.5 rounded border text-[9px] font-mono tracking-widest transition-all hover:bg-white/5"
+                  style={{ borderColor: `${theme.primary}44`, color: theme.primary }}
+                >
+                  ⚙ CONFIG
+                </button>
+                <button
+                  onMouseEnter={() => SFX.hover()}
+                  onClick={() => {
+                    SFX.buttonPress();
+                    supabase.auth.signOut();
+                  }}
+                  className="flex-1 py-1.5 rounded border text-[9px] font-mono tracking-widest transition-all hover:bg-red-500/10 border-red-500/30 text-red-300"
+                >
+                  SAIR
+                </button>
               </div>
             </div>
-          ) : (
-            <ul className="space-y-3">
-              {threads.map((t, i) => (
-                <motion.li
-                  key={t.id}
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + i * 0.05 }}
-                  whileHover={{ x: 8 }}
-                  onClick={() => navigate({ to: "/chat/$threadId", params: { threadId: t.id } })}
-                  className="group relative flex justify-between items-start p-5 border rounded-xl cursor-pointer bg-slate-950/50 backdrop-blur-md transition-all overflow-hidden"
-                  style={{ borderColor: `${theme.primary}33` }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.borderColor = `${theme.primary}99`;
-                    (e.currentTarget as HTMLElement).style.boxShadow = `0 0 30px ${theme.glow}`;
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.borderColor = `${theme.primary}33`;
-                    (e.currentTarget as HTMLElement).style.boxShadow = "none";
+          )}
+        </motion.aside>
+
+        {/* ============================================ */}
+        {/* MAIN CONTENT */}
+        {/* ============================================ */}
+        <main className="flex-1 flex flex-col relative overflow-hidden">
+          {/* TOP BAR — status */}
+          <motion.div
+            initial={{ y: -30, opacity: 0 }}
+            animate={{ y: booted ? 0 : -30, opacity: booted ? 1 : 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className="flex items-center justify-between p-4 border-b backdrop-blur-xl shrink-0"
+            style={{ borderColor: `${theme.primary}22` }}
+          >
+            <div className="flex items-center gap-4 text-[10px] font-mono tracking-widest">
+              <div className="flex items-center gap-2" style={{ color: theme.primary }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }} />
+                SISTEMA ONLINE
+              </div>
+              <span className="text-slate-600 hidden md:inline">·</span>
+              <span className="text-slate-500 hidden md:inline">{time.toLocaleTimeString("pt-BR")}</span>
+              <span className="text-slate-600 hidden md:inline">·</span>
+              <span className="text-slate-500 hidden md:inline">
+                {time.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {[
+                { label: "CPU", value: 43, color: theme.primary },
+                { label: "MEM", value: 67, color: theme.accent },
+                { label: "PWR", value: 98, color: "#10b981" },
+              ].map((m) => (
+                <div key={m.label} className="flex items-center gap-2 px-2.5 py-1 rounded border text-[9px] font-mono tracking-widest" style={{ borderColor: `${m.color}33`, color: m.color }}>
+                  <span>{m.label}</span>
+                  <div className="w-12 h-1 bg-slate-900 rounded overflow-hidden">
+                    <motion.div
+                      className="h-full"
+                      style={{ background: m.color, boxShadow: `0 0 6px ${m.color}` }}
+                      animate={{ width: `${m.value}%` }}
+                      transition={{ duration: 1 }}
+                    />
+                  </div>
+                  <span className="tabular-nums">{m.value}%</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* HERO — helmet + título + input */}
+          <div className="flex-1 flex flex-col items-center justify-center px-6 relative overflow-y-auto">
+            {/* Helmet + rings */}
+            <div className="relative">
+              {/* Anéis orbitais */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                {[1, 2, 3, 4].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute rounded-full"
+                    style={{
+                      width: `${280 + i * 100}px`,
+                      height: `${280 + i * 100}px`,
+                      border: `1px solid ${theme.primary}${i === 1 ? "33" : "1a"}`,
+                    }}
+                    animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
+                    transition={{ duration: 30 + i * 15, repeat: Infinity, ease: "linear" }}
+                  >
+                    <div
+                      className="absolute w-1 h-1 rounded-full"
+                      style={{
+                        top: "50%",
+                        left: i % 2 === 0 ? "-2px" : "calc(100% - 2px)",
+                        background: theme.primary,
+                        boxShadow: `0 0 8px ${theme.primary}`,
+                      }}
+                    />
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Helmet */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.6, y: 30 }}
+                animate={{ opacity: booted ? 1 : 0, scale: 0.85, y: 0 }}
+                transition={{ duration: 1.2, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className="relative"
+              >
+                <IronManHelmet state="idle" />
+              </motion.div>
+            </div>
+
+            {/* Título */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
+              transition={{ duration: 0.8, delay: 1 }}
+              className="text-center mt-4 mb-6"
+            >
+              <div
+                className="text-[10px] tracking-[0.5em] font-mono mb-3"
+                style={{ color: `${theme.primary}99` }}
+              >
+                ▸ BEM-VINDO DE VOLTA, SENHOR
+              </div>
+              <h1
+                className="font-orbitron text-3xl md:text-5xl tracking-[0.1em] leading-tight"
+                style={{
+                  background: `linear-gradient(90deg, ${theme.primary}, ${theme.accent}, ${theme.primary})`,
+                  backgroundSize: "200% auto",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  color: "transparent",
+                  animation: "gradientShift 4s ease infinite",
+                  filter: `drop-shadow(0 0 30px ${theme.glow})`,
+                  maxWidth: "fit-content",
+                  display: "inline-block",
+                }}
+              >
+                Como posso ajudar?
+              </h1>
+            </motion.div>
+
+            {/* INPUT GIGANTE */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
+              transition={{ duration: 0.8, delay: 1.2 }}
+              className="w-full max-w-2xl mb-4"
+            >
+              <div
+                className="relative flex items-center gap-2 p-2 rounded-2xl border backdrop-blur-xl transition-all"
+                style={{
+                  borderColor: `${theme.primary}55`,
+                  background: "rgba(2, 6, 23, 0.7)",
+                  boxShadow: `0 0 40px ${theme.glow}`,
+                }}
+              >
+                <input
+                  ref={inputRef}
+                  value={quickCommand}
+                  onChange={(e) => setQuickCommand(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleQuickSend()}
+                  placeholder="Digite um comando para começar…"
+                  className="flex-1 bg-transparent px-4 py-3 outline-none text-slate-100 placeholder:text-slate-500 font-mono text-sm"
+                  autoFocus
+                />
+                <button
+                  onMouseEnter={() => SFX.hover()}
+                  onClick={handleQuickSend}
+                  disabled={!quickCommand.trim()}
+                  className="px-5 py-3 rounded-xl font-orbitron text-[10px] tracking-[0.2em] text-slate-950 font-bold transition-all disabled:opacity-30"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.accent} 100%)`,
+                    boxShadow: `0 0 20px ${theme.glow}`,
                   }}
                 >
-                  <div
-                    className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 opacity-0 group-hover:opacity-100 transition-all"
-                    style={{ borderColor: theme.primary }}
-                  />
-                  <div
-                    className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 opacity-0 group-hover:opacity-100 transition-all"
-                    style={{ borderColor: theme.primary }}
-                  />
-                  <div className="flex items-start gap-4 flex-1 min-w-0 relative z-10">
-                    <div
-                      className="mt-1.5 w-2 h-2 rounded-full shrink-0"
-                      style={{ background: theme.primary, boxShadow: `0 0 10px ${theme.primary}` }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-slate-100 truncate">{t.title}</div>
-                      <div className="text-[10px] text-slate-600 font-mono mt-2 tracking-widest">
-                        {new Date(t.updated_at).toLocaleString("pt-BR")}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => remove(t.id, e)}
-                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition p-2 relative z-10"
-                  >
-                    ✕
-                  </button>
-                </motion.li>
-              ))}
-            </ul>
-          )}
-        </motion.main>
+                  ENVIAR ▸
+                </button>
+              </div>
+              <div className="text-[9px] font-mono tracking-widest text-slate-600 mt-2 text-center">
+                ENTER para enviar · Criar nova conversa
+              </div>
+            </motion.div>
 
-        {/* Footer */}
-        <motion.footer
-          initial={{ opacity: 0 }}
-          animate={{ opacity: booted ? 1 : 0 }}
-          transition={{ delay: 1.5 }}
-          className="text-center py-8 text-[10px] font-mono tracking-[0.4em] flex items-center justify-center gap-4 flex-wrap"
-          style={{ color: `${theme.primary}55` }}
-        >
-          <span>▸ {theme.name} v2.0.4</span>
-          <span>·</span>
-          <span>STARK INDUSTRIES</span>
-          <span>·</span>
-          <span>FAN PROJECT</span>
-        </motion.footer>
+            {/* QUICK ACTIONS */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
+              transition={{ duration: 0.8, delay: 1.4 }}
+              className="w-full max-w-3xl grid grid-cols-2 md:grid-cols-3 gap-2 mb-6"
+            >
+              {quickActions.map((a) => (
+                <motion.button
+                  key={a.label}
+                  whileHover={{ y: -2, borderColor: theme.primary }}
+                  whileTap={{ scale: 0.98 }}
+                  onMouseEnter={() => SFX.hover()}
+                  onClick={() => {
+                    SFX.click();
+                    setQuickCommand(a.prompt);
+                    inputRef.current?.focus();
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border backdrop-blur-sm bg-slate-950/40 transition-all text-left"
+                  style={{ borderColor: `${theme.primary}22` }}
+                >
+                  <span className="text-lg">{a.icon}</span>
+                  <span className="text-[11px] text-slate-300 tracking-wide">{a.label}</span>
+                </motion.button>
+              ))}
+            </motion.div>
+
+            {/* STATS RÁPIDAS */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: booted ? 1 : 0 }}
+              transition={{ duration: 0.8, delay: 1.6 }}
+              className="flex items-center gap-6 text-[10px] font-mono tracking-widest text-slate-500 mb-8"
+            >
+              <div className="flex items-center gap-2">
+                <span style={{ color: theme.primary }}>◈</span>
+                <span>{threads.length} conversas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span style={{ color: theme.primary }}>◆</span>
+                <span>v2.0.4</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Online</span>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* FOOTER */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: booted ? 1 : 0 }}
+            transition={{ delay: 1.8 }}
+            className="p-3 border-t backdrop-blur-xl flex items-center justify-between text-[9px] font-mono tracking-[0.3em] shrink-0"
+            style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}
+          >
+            <span>▸ {theme.name}</span>
+            <span className="hidden md:inline">STARK INDUSTRIES · FAN PROJECT</span>
+            <span>SYS v2.0.4</span>
+          </motion.div>
+        </main>
       </div>
+
+      <style>{`
+        @keyframes gradientShift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+      `}</style>
     </div>
   );
 }
