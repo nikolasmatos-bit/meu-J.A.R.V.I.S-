@@ -154,10 +154,10 @@ export default async function handler(req: Request) {
         Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
       },
       body: JSON.stringify({
-        model: "qwen/qwen3.8-27b",
-       messages: [{ role: "system", content: finalSystemPrompt }, ...messages.slice(-8)],
+       model: "openai/gpt-oss-20b",
+       messages: [{ role: "system", content: finalSystemPrompt }, ...messages],
         temperature: 0.85,
-        max_tokens:800,
+        max_tokens:4096,
       }),
     });
 
