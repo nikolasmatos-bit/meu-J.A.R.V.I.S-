@@ -6,7 +6,6 @@ import { useJarvis } from "../components/jarvis/Bootstrap";
 import { ArcReactor } from "../components/jarvis/ArcReactor";
 import { MouseTrail } from "../components/jarvis/MouseTrail";
 import { MemoryPanel } from "../components/jarvis/MemoryPanel";
-import { TopHud, BottomHud, ConversationMiniMap } from "../components/jarvis/HudOverlay";
 import { Conversation } from "../components/ai-elements/conversation";
 import { PromptInput } from "../components/ai-elements/prompt-input";
 import { SFX } from "../lib/sfx";
@@ -81,7 +80,6 @@ export function ChatPage() {
 
   const theme = THEMES[persona];
   const currentMode = MODES[mode];
-  const totalTokens = messages.reduce((acc, m) => acc + Math.floor(m.content.length / 4), 0);
 
   useEffect(() => {
     const p = loadPersona();
@@ -123,7 +121,6 @@ export function ChatPage() {
     SFX.setAmbientMood(state);
   }, [state, ambientOn]);
 
-  // Atalhos
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -296,35 +293,47 @@ export function ChatPage() {
   };
 
   const send = async (text: string) => {
+    console.log("[JARVIS] send() chamado com:", text);
+
     if (!text.trim()) return;
-    SFX.messageSend();
-    SFX.sendWhoosh();
+
+    try { SFX.messageSend(); } catch (e) { console.warn("sfx messageSend falhou", e); }
+    try { SFX.sendWhoosh(); } catch (e) { console.warn("sfx sendWhoosh falhou", e); }
+
     setCommandHistory((h) => [...h, text].slice(-50));
     setHistoryIndex(-1);
+
     const userMsg: Msg = { id: crypto.randomUUID(), role: "user", content: text };
     const next = [...messages, userMsg];
     setMessages(next);
     setState("thinking");
     setStreamingText("");
+
+    console.log("[JARVIS] mensagem adicionada, iniciando stream...");
+
     saveLearnedFacts(text);
 
     try {
       const settings = { ...loadSettings(), persona, mode };
+
       await chatStreamFn(
         {
           messages: next.map((m) => ({ role: m.role, content: m.content })),
           settings,
           facts: facts.map((f) => f.fact),
         },
-        (chunk) => setStreamingText((prev) => prev + chunk),
+        (chunk) => {
+          setStreamingText((prev) => prev + chunk);
+        },
         async (fullText) => {
+          console.log("[JARVIS] resposta completa recebida");
           setMessages((m) => [
             ...m,
             { id: crypto.randomUUID(), role: "assistant", content: fullText },
           ]);
           setStreamingText("");
-          SFX.messageReceive();
-          SFX.responseDone();
+          try { SFX.messageReceive(); } catch {}
+          try { SFX.responseDone(); } catch {}
           speak(fullText);
           const title = text.slice(0, 40);
           await supabase
@@ -334,7 +343,8 @@ export function ChatPage() {
             .eq("title", "Nova conversa");
         },
         (err) => {
-          SFX.error();
+          console.error("[JARVIS] erro no stream:", err);
+          try { SFX.error(); } catch {}
           setMessages((m) => [
             ...m,
             { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err}` },
@@ -344,7 +354,8 @@ export function ChatPage() {
         }
       );
     } catch (err: any) {
-      SFX.error();
+      console.error("[JARVIS] catch final:", err);
+      try { SFX.error(); } catch {}
       setMessages((m) => [
         ...m,
         { id: crypto.randomUUID(), role: "assistant", content: `Erro: ${err.message}` },
@@ -369,14 +380,6 @@ export function ChatPage() {
       <div className="scanline" />
       <MouseTrail />
 
-      {booted && (
-        <>
-          <TopHud color={theme.primary} state={state} />
-          <BottomHud color={theme.primary} messageCount={messages.length} tokens={totalTokens} />
-          <ConversationMiniMap messageCount={messages.length} color={theme.primary} />
-        </>
-      )}
-
       <MemoryPanel
         open={memoryOpen}
         onClose={() => {
@@ -388,7 +391,6 @@ export function ChatPage() {
         userId={user?.id ?? ""}
       />
 
-      {/* Learned indicator */}
       <AnimatePresence>
         {learnedIndicator && (
           <motion.div
@@ -423,7 +425,6 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Wake detected */}
       <AnimatePresence>
         {wakeDetected && (
           <motion.div
@@ -446,7 +447,6 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Cantos HUD */}
       {booted && (
         <>
           <div
@@ -468,7 +468,6 @@ export function ChatPage() {
         </>
       )}
 
-      {/* Aura */}
       <motion.div
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-colors duration-700"
         style={{
@@ -482,7 +481,6 @@ export function ChatPage() {
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* Boot overlay */}
       <AnimatePresence>
         {!booted && (
           <motion.div
@@ -506,7 +504,6 @@ export function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* HUD lateral ESQUERDO */}
       {booted && (
         <div className="absolute top-32 left-6 space-y-3 z-20 hidden lg:block">
           <StatusBar label="CPU" color={theme.primary} />
@@ -515,19 +512,17 @@ export function ChatPage() {
         </div>
       )}
 
-      {/* HUD lateral DIREITO */}
       {booted && (
         <div className="absolute top-32 right-6 z-20 hidden lg:block">
           <Radar color={theme.primary} />
         </div>
       )}
 
-      {/* HEADER */}
       <motion.header
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="relative z-20 mt-20 p-4 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
+        className="relative z-20 p-4 border-b backdrop-blur-xl bg-slate-950/40 transition-colors duration-700"
         style={{ borderColor: `${theme.primary}33` }}
       >
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-4 flex-wrap">
@@ -937,13 +932,17 @@ function Radar({ color }: { color: string }) {
           style={{ inset: `${i}px`, borderColor: `${color}40` }}
         />
       ))}
-      <div className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+      <div
+        className="absolute top-1/2 left-1/2 w-1 h-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{ background: color, boxShadow: `0 0 8px ${color}` }}
       />
       <div className="radar-sweep absolute inset-0">
         <div
           className="absolute top-1/2 left-1/2 w-14 h-px origin-left"
-          style={{ background: `linear-gradient(90deg, ${color}, transparent)`, transform: "translateY(-50%)" }}
+          style={{
+            background: `linear-gradient(90deg, ${color}, transparent)`,
+            transform: "translateY(-50%)",
+          }}
         />
       </div>
     </div>

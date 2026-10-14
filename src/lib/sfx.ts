@@ -12,8 +12,16 @@ function envelope(gain: GainNode, start: number, attack: number, decay: number, 
   gain.gain.exponentialRampToValueAtTime(0.0001, start + attack + decay);
 }
 
+function safe(fn: () => void) {
+  try {
+    fn();
+  } catch (e) {
+    console.warn("[SFX] erro silenciado:", e);
+  }
+}
+
 // ============================================
-// SOM AMBIENTE (singleton)
+// SOM AMBIENTE
 // ============================================
 let ambient: {
   osc1: OscillatorNode;
@@ -114,144 +122,336 @@ function setAmbientMoodImpl(mood: "idle" | "thinking" | "speaking") {
 }
 
 // ============================================
-// SONS DE UI
+// SONS DE UI — todos com safe()
 // ============================================
 export const SFX = {
   click() {
-    const c = getCtx();
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(800, c.currentTime);
-    envelope(gain, c.currentTime, 0.002, 0.03, 0.15);
-    osc.connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + 0.05);
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(800, c.currentTime);
+      envelope(g, c.currentTime, 0.002, 0.03, 0.15);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.05);
+    });
   },
 
   keyClick() {
-    const c = getCtx();
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(2400, c.currentTime);
-    envelope(gain, c.currentTime, 0.001, 0.015, 0.08);
-    osc.connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + 0.02);
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(2400, c.currentTime);
+      envelope(g, c.currentTime, 0.001, 0.015, 0.08);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.02);
+    });
+  },
+
+  hover() {
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(1800, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(2200, c.currentTime + 0.04);
+      envelope(g, c.currentTime, 0.001, 0.04, 0.04);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.06);
+    });
+  },
+
+  menuOpen() {
+    safe(() => {
+      const c = getCtx();
+      [660, 880].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.04);
+        envelope(g, c.currentTime + i * 0.04, 0.005, 0.12, 0.06);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.04);
+        o.stop(c.currentTime + i * 0.04 + 0.15);
+      });
+    });
+  },
+
+  menuClose() {
+    safe(() => {
+      const c = getCtx();
+      [880, 660].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.04);
+        envelope(g, c.currentTime + i * 0.04, 0.005, 0.1, 0.05);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.04);
+        o.stop(c.currentTime + i * 0.04 + 0.12);
+      });
+    });
+  },
+
+  personaSwitch() {
+    safe(() => {
+      const c = getCtx();
+      [523.25, 659.25, 783.99].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "triangle";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.06);
+        envelope(g, c.currentTime + i * 0.06, 0.01, 0.2, 0.08);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.06);
+        o.stop(c.currentTime + i * 0.06 + 0.25);
+      });
+    });
+  },
+
+  modeSwitch() {
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(400, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1200, c.currentTime + 0.15);
+      f.type = "bandpass";
+      f.frequency.setValueAtTime(800, c.currentTime);
+      f.Q.setValueAtTime(4, c.currentTime);
+      envelope(g, c.currentTime, 0.005, 0.18, 0.08);
+      o.connect(f).connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.2);
+    });
+  },
+
+  messageSend() {
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(1200, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(2400, c.currentTime + 0.1);
+      envelope(g, c.currentTime, 0.003, 0.12, 0.08);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.15);
+    });
+  },
+
+  messageReceive() {
+    safe(() => {
+      const c = getCtx();
+      [1318.51, 1567.98].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.05);
+        envelope(g, c.currentTime + i * 0.05, 0.005, 0.18, 0.09);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.05);
+        o.stop(c.currentTime + i * 0.05 + 0.22);
+      });
+    });
+  },
+
+  memorySave() {
+    safe(() => {
+      const c = getCtx();
+      [1046.5, 1318.51, 1567.98].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.07);
+        envelope(g, c.currentTime + i * 0.07, 0.008, 0.25, 0.07);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.07);
+        o.stop(c.currentTime + i * 0.07 + 0.3);
+      });
+    });
+  },
+
+  bootComplete() {
+    safe(() => {
+      const c = getCtx();
+      [523.25, 783.99, 1046.5, 1318.51].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "triangle";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.1);
+        envelope(g, c.currentTime + i * 0.1, 0.01, 0.4, 0.09);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.1);
+        o.stop(c.currentTime + i * 0.1 + 0.5);
+      });
+    });
+  },
+
+  buttonPress() {
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "square";
+      o.frequency.setValueAtTime(1200, c.currentTime);
+      o.frequency.setValueAtTime(900, c.currentTime + 0.03);
+      envelope(g, c.currentTime, 0.002, 0.05, 0.12);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.08);
+    });
   },
 
   reactorEngage() {
-    const c = getCtx();
-    const osc = c.createOscillator();
-    const filter = c.createBiquadFilter();
-    const gain = c.createGain();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(220, c.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(660, c.currentTime + 0.4);
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(1200, c.currentTime);
-    filter.Q.setValueAtTime(8, c.currentTime);
-    envelope(gain, c.currentTime, 0.05, 0.5, 0.12);
-    osc.connect(filter).connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + 0.6);
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(220, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(660, c.currentTime + 0.4);
+      f.type = "lowpass";
+      f.frequency.setValueAtTime(1200, c.currentTime);
+      f.Q.setValueAtTime(8, c.currentTime);
+      envelope(g, c.currentTime, 0.05, 0.5, 0.12);
+      o.connect(f).connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.6);
+    });
   },
 
   sendWhoosh() {
-    const c = getCtx();
-    const noise = c.createBufferSource();
-    const buffer = c.createBuffer(1, c.sampleRate * 0.4, c.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    }
-    noise.buffer = buffer;
-    const filter = c.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.setValueAtTime(800, c.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(3000, c.currentTime + 0.3);
-    filter.Q.setValueAtTime(2, c.currentTime);
-    const gain = c.createGain();
-    envelope(gain, c.currentTime, 0.02, 0.35, 0.08);
-    noise.connect(filter).connect(gain).connect(c.destination);
-    noise.start();
-    noise.stop(c.currentTime + 0.4);
+    safe(() => {
+      const c = getCtx();
+      const n = c.createBufferSource();
+      const b = c.createBuffer(1, c.sampleRate * 0.4, c.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      }
+      n.buffer = b;
+      const f = c.createBiquadFilter();
+      f.type = "bandpass";
+      f.frequency.setValueAtTime(800, c.currentTime);
+      f.frequency.exponentialRampToValueAtTime(3000, c.currentTime + 0.3);
+      f.Q.setValueAtTime(2, c.currentTime);
+      const g = c.createGain();
+      envelope(g, c.currentTime, 0.02, 0.35, 0.08);
+      n.connect(f).connect(g).connect(c.destination);
+      n.start();
+      n.stop(c.currentTime + 0.4);
+    });
   },
 
   thinkBeep() {
-    const c = getCtx();
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(1500, c.currentTime);
-    envelope(gain, c.currentTime, 0.005, 0.08, 0.04);
-    osc.connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + 0.1);
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(1500, c.currentTime);
+      envelope(g, c.currentTime, 0.005, 0.08, 0.04);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.1);
+    });
   },
 
   responseDone() {
-    const c = getCtx();
-    [523.25, 659.25].forEach((freq, i) => {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, c.currentTime + i * 0.08);
-      envelope(gain, c.currentTime + i * 0.08, 0.01, 0.4, 0.1);
-      osc.connect(gain).connect(c.destination);
-      osc.start(c.currentTime + i * 0.08);
-      osc.stop(c.currentTime + i * 0.08 + 0.5);
+    safe(() => {
+      const c = getCtx();
+      [523.25, 659.25].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.08);
+        envelope(g, c.currentTime + i * 0.08, 0.01, 0.4, 0.1);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.08);
+        o.stop(c.currentTime + i * 0.08 + 0.5);
+      });
     });
   },
 
   error() {
-    const c = getCtx();
-    const osc = c.createOscillator();
-    const gain = c.createGain();
-    osc.type = "square";
-    osc.frequency.setValueAtTime(150, c.currentTime);
-    osc.frequency.setValueAtTime(120, c.currentTime + 0.15);
-    envelope(gain, c.currentTime, 0.005, 0.35, 0.08);
-    osc.connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + 0.4);
-  },
-
-  servoMove() {
-    const c = getCtx();
-    const osc = c.createOscillator();
-    const filter = c.createBiquadFilter();
-    const gain = c.createGain();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(180, c.currentTime);
-    osc.frequency.linearRampToValueAtTime(90, c.currentTime + 0.3);
-    filter.type = "bandpass";
-    filter.frequency.setValueAtTime(400, c.currentTime);
-    filter.Q.setValueAtTime(6, c.currentTime);
-    envelope(gain, c.currentTime, 0.02, 0.35, 0.06);
-    osc.connect(filter).connect(gain).connect(c.destination);
-    osc.start();
-    osc.stop(c.currentTime + 0.4);
-  },
-
-  wakeDetected() {
-    const c = getCtx();
-    [880, 1108.73, 1318.51].forEach((freq, i) => {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, c.currentTime + i * 0.05);
-      envelope(gain, c.currentTime + i * 0.05, 0.005, 0.2, 0.1);
-      osc.connect(gain).connect(c.destination);
-      osc.start(c.currentTime + i * 0.05);
-      osc.stop(c.currentTime + i * 0.05 + 0.25);
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "square";
+      o.frequency.setValueAtTime(150, c.currentTime);
+      o.frequency.setValueAtTime(120, c.currentTime + 0.15);
+      envelope(g, c.currentTime, 0.005, 0.35, 0.08);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.4);
     });
   },
 
-  // === AMBIENTE ===
-  startAmbient() { startAmbientImpl(); },
-  stopAmbient() { stopAmbientImpl(); },
+  servoMove() {
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(180, c.currentTime);
+      o.frequency.linearRampToValueAtTime(90, c.currentTime + 0.3);
+      f.type = "bandpass";
+      f.frequency.setValueAtTime(400, c.currentTime);
+      f.Q.setValueAtTime(6, c.currentTime);
+      envelope(g, c.currentTime, 0.02, 0.35, 0.06);
+      o.connect(f).connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.4);
+    });
+  },
+
+  wakeDetected() {
+    safe(() => {
+      const c = getCtx();
+      [880, 1108.73, 1318.51].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, c.currentTime + i * 0.05);
+        envelope(g, c.currentTime + i * 0.05, 0.005, 0.2, 0.1);
+        o.connect(g).connect(c.destination);
+        o.start(c.currentTime + i * 0.05);
+        o.stop(c.currentTime + i * 0.05 + 0.25);
+      });
+    });
+  },
+
+  typingStart() {
+    safe(() => {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(1200, c.currentTime);
+      o.frequency.exponentialRampToValueAtTime(600, c.currentTime + 0.15);
+      envelope(g, c.currentTime, 0.005, 0.1, 0.05);
+      o.connect(g).connect(c.destination);
+      o.start();
+      o.stop(c.currentTime + 0.15);
+    });
+  },
+
+  startAmbient() { safe(() => startAmbientImpl()); },
+  stopAmbient() { safe(() => stopAmbientImpl()); },
   isAmbientActive() { return ambientRunning; },
-  setAmbientMood(mood: "idle" | "thinking" | "speaking") { setAmbientMoodImpl(mood); },
+  setAmbientMood(m: "idle" | "thinking" | "speaking") { safe(() => setAmbientMoodImpl(m)); },
 };
