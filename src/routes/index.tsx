@@ -7,10 +7,17 @@ import { IronManHelmet } from "../components/jarvis/IronManHelmet";
 import { MouseTrail } from "../components/jarvis/MouseTrail";
 import { SFX } from "../lib/sfx";
 
+type Thread = {
+  id: string;
+  title: string;
+  updated_at: string;
+  lastMessage?: string;
+};
+
 export function HomePage() {
   const { user } = useJarvis();
   const navigate = useNavigate();
-  const [threads, setThreads] = useState<any[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -19,11 +26,31 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
-    supabase
-      .from("threads")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .then(({ data }) => setThreads(data ?? []));
+    (async () => {
+      const { data: threadsData } = await supabase
+        .from("threads")
+        .select("*")
+        .order("updated_at", { ascending: false });
+
+      if (!threadsData) return;
+
+      // Pega última mensagem de cada thread
+      const withLast: Thread[] = await Promise.all(
+        threadsData.map(async (t) => {
+          const { data: msgs } = await supabase
+            .from("messages")
+            .select("content")
+            .eq("thread_id", t.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          return {
+            ...t,
+            lastMessage: msgs?.[0]?.content?.slice(0, 80) ?? "",
+          };
+        })
+      );
+      setThreads(withLast);
+    })();
   }, []);
 
   const newThread = async () => {
@@ -137,35 +164,75 @@ export function HomePage() {
         </div>
       </header>
 
-      {/* Capacete */}
-      <div className="py-16 relative z-10">
+      {/* === CAPACETE COM ANÉIS CONCÊNTRICOS === */}
+      <div className="relative py-12 z-10">
+        {/* Anéis de fundo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {[1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              className="absolute rounded-full border border-cyan-400/20"
+              style={{
+                width: `${300 + i * 180}px`,
+                height: `${300 + i * 180}px`,
+              }}
+              animate={{
+                rotate: i % 2 === 0 ? 360 : -360,
+                opacity: [0.15, 0.35, 0.15],
+              }}
+              transition={{
+                rotate: { duration: 30 + i * 10, repeat: Infinity, ease: "linear" },
+                opacity: { duration: 4, repeat: Infinity },
+              }}
+            >
+              {/* Marcador no anel */}
+              <div
+                className="absolute w-2 h-2 rounded-full bg-cyan-400"
+                style={{
+                  top: "50%",
+                  left: "-4px",
+                  boxShadow: "0 0 10px #22d3ee",
+                }}
+              />
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Capacete */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: 30 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0, scale: 0.7, y: 40 }}
+          animate={{ opacity: 1, scale: 1.15, y: 0 }}
+          transition={{ duration: 1.2, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="relative"
         >
           <IronManHelmet state="idle" />
         </motion.div>
       </div>
 
-      {/* Cards de stats */}
-      <div className="max-w-4xl mx-auto px-6 relative z-10 mb-12">
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="CONVERSAS" value={threads.length} color="#22d3ee" />
+      {/* === CARDS DE STATUS === */}
+      <div className="max-w-5xl mx-auto px-6 relative z-10 mb-14">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="HORA LOCAL" value={new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} color="#22d3ee" pulse />
+          <StatCard label="OPERADOR" value={user.email.split("@")[0]} color="#0ea5e9" />
+          <StatCard label="CONVERSAS" value={threads.length} color="#67e8f9" />
           <StatCard label="STATUS" value="ONLINE" color="#10b981" />
-          <StatCard label="VERSÃO" value="v2.0.4" color="#0ea5e9" />
         </div>
       </div>
 
-      {/* Lista de conversas */}
-      <main className="max-w-4xl mx-auto px-6 pb-20 relative z-10">
+      {/* === LISTA DE CONVERSAS === */}
+      <main className="max-w-5xl mx-auto px-6 pb-24 relative z-10">
         <div className="flex justify-between items-center mb-6">
-          <h2
-            className="font-orbitron text-sm tracking-[0.4em] text-cyan-400/80"
-            style={{ textShadow: "0 0 10px #22d3ee" }}
-          >
-            ▸ HISTÓRICO
-          </h2>
+          <div>
+            <h2
+              className="font-orbitron text-sm tracking-[0.4em] text-cyan-400/80"
+              style={{ textShadow: "0 0 10px #22d3ee" }}
+            >
+              ▸ HISTÓRICO DE CONVERSAS
+            </h2>
+            <div className="text-[10px] text-slate-500 font-mono mt-1">
+              {threads.length} {threads.length === 1 ? "registro" : "registros"}
+            </div>
+          </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -197,35 +264,34 @@ export function HomePage() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}
-                whileHover={{ x: 4 }}
+                whileHover={{ x: 6, boxShadow: "0 0 30px rgba(34, 211, 238, 0.2)" }}
                 onClick={() =>
                   navigate({ to: "/chat/$threadId", params: { threadId: t.id } })
                 }
-                className="group flex justify-between items-center p-4 border border-cyan-500/20 hover:border-cyan-400/60 rounded-lg cursor-pointer bg-slate-950/60 backdrop-blur-sm transition-all"
-                style={{
-                  boxShadow: "0 0 0 rgba(34, 211, 238, 0)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 0 30px rgba(34, 211, 238, 0.15)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 0 0 rgba(34, 211, 238, 0)";
-                }}
+                className="group flex justify-between items-start p-5 border border-cyan-500/20 hover:border-cyan-400/60 rounded-xl cursor-pointer bg-slate-950/60 backdrop-blur-sm transition-all relative overflow-hidden"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                  <div>
-                    <div className="font-medium text-slate-100">{t.title}</div>
-                    <div className="text-xs text-slate-500 font-mono">
+                {/* Borda lateral esquerda luminosa */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition"
+                />
+
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="mt-1 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-slate-100 truncate">{t.title}</div>
+                    {t.lastMessage && (
+                      <div className="text-xs text-slate-500 mt-1 truncate font-mono">
+                        ▸ {t.lastMessage}...
+                      </div>
+                    )}
+                    <div className="text-[10px] text-slate-600 font-mono mt-1 tracking-widest">
                       {new Date(t.updated_at).toLocaleString("pt-BR")}
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={(e) => remove(t.id, e)}
-                  className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition p-2"
+                  className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition p-2 shrink-0"
                 >
                   ✕
                 </button>
@@ -238,7 +304,33 @@ export function HomePage() {
   );
 }
 
-function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
+function StatCard({
+  label,
+  value,
+  color,
+  pulse,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+  pulse?: boolean;
+}) {
+  const [displayValue, setDisplayValue] = useState(value);
+
+  useEffect(() => {
+    if (!pulse) return;
+    const i = setInterval(() => {
+      setDisplayValue(
+        new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      );
+    }, 1000);
+    return () => clearInterval(i);
+  }, [pulse]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -251,13 +343,22 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
         boxShadow: `0 0 20px ${color}20`,
       }}
     >
-      <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2" style={{ borderColor: color }} />
-      <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2" style={{ borderColor: color }} />
+      <div
+        className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2"
+        style={{ borderColor: color }}
+      />
+      <div
+        className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2"
+        style={{ borderColor: color }}
+      />
       <div className="text-[9px] tracking-[0.3em] font-mono mb-1" style={{ color }}>
         {label}
       </div>
-      <div className="font-orbitron text-xl" style={{ color, textShadow: `0 0 10px ${color}80` }}>
-        {value}
+      <div
+        className="font-orbitron text-lg md:text-xl truncate"
+        style={{ color, textShadow: `0 0 10px ${color}80` }}
+      >
+        {displayValue}
       </div>
     </motion.div>
   );
