@@ -14,20 +14,23 @@ export function Bootstrap({ children }: { children: React.ReactNode }) {
       setUser(data.user);
       setLoading(false);
     });
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });
+
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="font-orbitron text-cyan-300 tracking-widest animate-pulse">
-          INICIALIZANDO J.A.R.V.I.S…
+      <div className="min-h-screen flex items-center justify-center bg-[#03050a]">
+        <div className="font-orbitron text-cyan-300 tracking-[0.4em] text-sm animate-pulse">
+          INICIALIZANDO…
         </div>
       </div>
     );
+  }
 
   if (!user) return <LoginPage />;
 
