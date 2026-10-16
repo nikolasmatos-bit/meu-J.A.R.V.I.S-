@@ -18,13 +18,22 @@ const PERSONAS_LIST: { id: Persona; label: string; code: string }[] = [
 ];
 
 const BOOT_LOG = [
-  "init:: neural_core",
-  "load:: personality_matrix",
-  "link:: stark_industries",
-  "sync:: memory_bank",
-  "check:: threat_scan ............ clear",
-  "auth:: operator verified",
-  "ready.",
+  "neural_core :: INIT",
+  "personality_matrix :: LOAD",
+  "stark_uplink :: CONNECT",
+  "memory_bank :: SYNC",
+  "threat_scan :: CLEAR",
+  "operator_auth :: VERIFIED",
+  "all_systems :: NOMINAL",
+];
+
+const TIPS = [
+  "↑ no input repete o último comando",
+  "Ctrl+M alterna o modo de raciocínio",
+  "F11 entra em tela cheia cinematográfica",
+  "diga 'JARVIS' para ativar modo voz",
+  "peça 'pesquise X' para buscar na web",
+  "pergunte 'o que é X' pra consultar Wikipedia",
 ];
 
 export function HomePage() {
@@ -34,13 +43,15 @@ export function HomePage() {
   const [filtered, setFiltered] = useState<Thread[]>([]);
   const [search, setSearch] = useState("");
   const [booted, setBooted] = useState(false);
-  const [bootLines, setBootLines] = useState<number>(0);
+  const [bootLines, setBootLines] = useState(0);
   const [time, setTime] = useState(new Date());
   const [persona, setPersona] = useState<Persona>("jarvis");
   const [quick, setQuick] = useState("");
   const [focused, setFocused] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
-  const [terminalLines, setTerminalLines] = useState<string[]>([]);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [cpuHistory, setCpuHistory] = useState<number[]>(Array(20).fill(40));
+  const [terminalLog, setTerminalLog] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const theme = THEMES[persona];
@@ -58,9 +69,9 @@ export function HomePage() {
       setBootLines(i);
       if (i >= BOOT_LOG.length) {
         clearInterval(t);
-        setTimeout(() => setBooted(true), 400);
+        setTimeout(() => setBooted(true), 300);
       }
-    }, 180);
+    }, 160);
     return () => clearInterval(t);
   }, []);
 
@@ -69,22 +80,35 @@ export function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  // Terminal log rotativo
+  useEffect(() => {
+    const t = setInterval(() => setTipIndex((i) => (i + 1) % TIPS.length), 5500);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!booted) return;
+    const t = setInterval(() => {
+      setCpuHistory((h) => [...h.slice(1), 30 + Math.random() * 60]);
+    }, 1200);
+    return () => clearInterval(t);
+  }, [booted]);
+
   useEffect(() => {
     if (!booted) return;
     const logs = [
-      "ping :: latency 12ms",
-      "scan :: no threats detected",
-      "sync :: cloud status OK",
-      "proc :: neural engine 98.4%",
-      "link :: satellite uplink stable",
-      "auth :: operator authenticated",
+      "scan :: no threats",
+      "link :: satellite OK",
+      "sync :: cloud 100%",
+      "core :: neural 98.4%",
+      "auth :: operator verified",
+      "status :: all nominal",
     ];
     let i = 0;
     const t = setInterval(() => {
-      setTerminalLines((prev) => [...prev.slice(-4), `[${new Date().toLocaleTimeString("pt-BR")}] ${logs[i % logs.length]}`]);
+      const ts = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setTerminalLog((prev) => [...prev.slice(-4), `${ts}  ${logs[i % logs.length]}`]);
       i++;
-    }, 2500);
+    }, 3200);
     return () => clearInterval(t);
   }, [booted]);
 
@@ -93,7 +117,10 @@ export function HomePage() {
       .from("threads")
       .select("id, title, updated_at")
       .order("updated_at", { ascending: false })
-      .then(({ data }) => { setThreads(data ?? []); setFiltered(data ?? []); });
+      .then(({ data }) => {
+        setThreads(data ?? []);
+        setFiltered(data ?? []);
+      });
   }, []);
 
   useEffect(() => {
@@ -118,6 +145,14 @@ export function HomePage() {
     newThread(quick.trim());
   };
 
+  const removeThread = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Apagar esta conversa?")) return;
+    await supabase.from("threads").delete().eq("id", id);
+    setThreads((t) => t.filter((x) => x.id !== id));
+    SFX.error();
+  };
+
   const switchPersona = (p: Persona) => {
     setPersona(p);
     applyTheme(p);
@@ -126,58 +161,64 @@ export function HomePage() {
   };
 
   const currentPersona = PERSONAS_LIST.find((p) => p.id === persona)!;
-  const greeting = time.getHours() < 12 ? "BOM DIA" : time.getHours() < 18 ? "BOA TARDE" : "BOA NOITE";
+  const hour = time.getHours();
+  const greeting = hour < 12 ? "BOM DIA" : hour < 18 ? "BOA TARDE" : "BOA NOITE";
+
+  // SVG path pra gráfico CPU
+  const cpuPath = cpuHistory
+    .map((v, i) => `${i === 0 ? "M" : "L"} ${(i / (cpuHistory.length - 1)) * 100} ${30 - (v / 100) * 30}`)
+    .join(" ");
 
   return (
     <div className="min-h-screen text-slate-100 relative overflow-hidden bg-[#05070d]">
       <MouseTrail />
 
-      {/* BLUEPRINT GRID — fino e técnico */}
+      {/* Blueprint grid */}
       <div
         className="fixed inset-0 pointer-events-none z-0"
         style={{
           backgroundImage: `
-            linear-gradient(${theme.primary}0d 1px, transparent 1px),
-            linear-gradient(90deg, ${theme.primary}0d 1px, transparent 1px),
-            linear-gradient(${theme.primary}1a 1px, transparent 1px),
-            linear-gradient(90deg, ${theme.primary}1a 1px, transparent 1px)
+            linear-gradient(${theme.primary}0a 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.primary}0a 1px, transparent 1px),
+            linear-gradient(${theme.primary}14 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.primary}14 1px, transparent 1px)
           `,
           backgroundSize: "20px 20px, 20px 20px, 100px 100px, 100px 100px",
         }}
       />
 
-      {/* Watermark vertical gigante */}
+      {/* Watermark vertical */}
       <div
-        className="fixed top-1/2 -translate-y-1/2 font-orbitron select-none pointer-events-none z-0 hidden lg:block"
+        className="fixed top-1/2 -translate-y-1/2 font-orbitron select-none pointer-events-none z-0 hidden xl:block"
         style={{
-          right: "-2rem",
+          right: "-1rem",
           fontSize: "200px",
           lineHeight: 1,
-          color: `${theme.primary}08`,
+          color: `${theme.primary}07`,
           writingMode: "vertical-rl",
           transform: "translateY(-50%) rotate(180deg)",
-          letterSpacing: "0.1em",
+          letterSpacing: "0.05em",
         }}
       >
         {currentPersona.code}
       </div>
 
-      {/* Rail esquerdo — vertical */}
+      {/* Rails laterais */}
       <div
-        className="fixed left-0 top-0 bottom-0 w-8 border-r z-20 hidden md:flex flex-col items-center justify-between py-4 shrink-0"
+        className="fixed left-0 top-0 bottom-0 w-8 border-r z-20 hidden md:flex flex-col items-center justify-between py-4"
         style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.7)" }}
       >
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="w-4 h-4 border"
+          transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+          className="w-3 h-3 border"
           style={{ borderColor: theme.primary, borderTopColor: "transparent" }}
         />
         <div
           className="font-mono text-[9px] tracking-[0.4em] rotate-180"
           style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
         >
-          STARK INDUSTRIES · 04.2
+          STARK INDUSTRIES · MK-VII
         </div>
         <div
           className="font-mono text-[9px] tracking-[0.3em]"
@@ -187,29 +228,19 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Rail direito — vertical */}
       <div
-        className="fixed right-0 top-0 bottom-0 w-8 border-l z-20 hidden md:flex flex-col items-center justify-between py-4 shrink-0"
+        className="fixed right-0 top-0 bottom-0 w-8 border-l z-20 hidden md:flex flex-col items-center justify-between py-4"
         style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.7)" }}
       >
-        <div
-          className="font-mono text-[9px] tracking-[0.3em]"
-          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
-        >
+        <div className="font-mono text-[9px] tracking-[0.3em]" style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}>
           LAT -23.5505
         </div>
-        <div className="w-px h-16" style={{ background: `${theme.primary}44` }} />
-        <div
-          className="font-mono text-[9px] tracking-[0.3em]"
-          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
-        >
+        <div className="w-px h-12" style={{ background: `${theme.primary}44` }} />
+        <div className="font-mono text-[9px] tracking-[0.3em]" style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}>
           LNG -46.6333
         </div>
-        <div className="w-px h-16" style={{ background: `${theme.primary}44` }} />
-        <div
-          className="font-mono text-[9px] tracking-[0.3em]"
-          style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
-        >
+        <div className="w-px h-12" style={{ background: `${theme.primary}44` }} />
+        <div className="font-mono text-[9px] tracking-[0.3em]" style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}>
           SEC-7G
         </div>
       </div>
@@ -221,27 +252,37 @@ export function HomePage() {
             key="boot"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
             className="fixed inset-0 z-[500] bg-[#05070d] flex items-center justify-center px-6"
           >
             <div className="font-mono text-sm w-full max-w-lg">
-              <div className="mb-6" style={{ color: theme.primary }}>
-                <span style={{ color: `${theme.primary}66` }}>┌─[</span> STARK MAINFRAME v2.0.4 <span style={{ color: `${theme.primary}66` }}>]─┐</span>
+              <div className="mb-6 flex items-center gap-3" style={{ color: theme.primary }}>
+                <div className="flex-1 h-px" style={{ background: `${theme.primary}44` }} />
+                <span className="text-[10px] tracking-[0.5em]">STARK MAINFRAME</span>
+                <div className="flex-1 h-px" style={{ background: `${theme.primary}44` }} />
               </div>
               {BOOT_LOG.slice(0, bootLines).map((line, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, x: -10 }}
+                  initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="py-0.5"
+                  className="py-1 flex items-center gap-3"
                   style={{ color: `${theme.primary}cc` }}
                 >
-                  <span style={{ color: `${theme.primary}66` }}>[{String(i).padStart(2, "0")}]</span> {line}
+                  <span style={{ color: `${theme.primary}55` }}>[{String(i + 1).padStart(2, "0")}]</span>
+                  <span className="flex-1">{line}</span>
+                  <span style={{ color: "#10b981" }}>OK</span>
                 </motion.div>
               ))}
               {bootLines >= BOOT_LOG.length && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 flex items-center gap-2" style={{ color: theme.primary }}>
-                  <span className="w-2 h-2 animate-pulse" style={{ background: theme.primary }} />
-                  ready for input
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-6 flex items-center gap-2 text-[11px] tracking-widest"
+                  style={{ color: theme.primary }}
+                >
+                  <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary }} />
+                  READY FOR INPUT
                 </motion.div>
               )}
             </div>
@@ -251,7 +292,7 @@ export function HomePage() {
 
       {/* CONTEÚDO */}
       <div className="relative z-10 pl-0 md:pl-8 pr-0 md:pr-8 min-h-screen flex flex-col">
-        {/* Top bar — coordenadas e status */}
+        {/* TOP BAR */}
         <motion.header
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : -20 }}
@@ -259,19 +300,21 @@ export function HomePage() {
           className="flex items-center justify-between px-6 py-3 border-b font-mono text-[10px] tracking-[0.25em] gap-4 flex-wrap"
           style={{ borderColor: `${theme.primary}22` }}
         >
-          <div className="flex items-center gap-4" style={{ color: `${theme.primary}99` }}>
+          <div className="flex items-center gap-4 flex-wrap" style={{ color: `${theme.primary}99` }}>
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary }} />
               ONLINE
             </span>
-            <span className="text-slate-600">|</span>
+            <span className="text-slate-700">│</span>
             <span className="tabular-nums">{time.toLocaleTimeString("pt-BR")}</span>
-            <span className="text-slate-600 hidden md:inline">|</span>
+            <span className="text-slate-700 hidden md:inline">│</span>
             <span className="hidden md:inline">
               {time.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).toUpperCase()}
             </span>
-            <span className="text-slate-600 hidden lg:inline">|</span>
-            <span className="hidden lg:inline">{greeting}, {user.email.split("@")[0].toUpperCase()}</span>
+            <span className="text-slate-700 hidden lg:inline">│</span>
+            <span className="hidden lg:inline">
+              {greeting}, {user.email.split("@")[0].toUpperCase()}
+            </span>
           </div>
 
           {/* Persona switcher */}
@@ -292,7 +335,7 @@ export function HomePage() {
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="absolute top-full right-0 mt-1 z-[100] border min-w-[180px]"
+                  className="absolute top-full right-0 mt-1 z-[100] border min-w-[200px]"
                   style={{ background: "#05070d", borderColor: `${theme.primary}44` }}
                 >
                   {PERSONAS_LIST.map((p) => {
@@ -322,9 +365,9 @@ export function HomePage() {
           </div>
         </motion.header>
 
-        {/* GRID PRINCIPAL — 3 colunas assimétricas */}
-        <div className="flex-1 grid grid-cols-12 gap-0 min-h-0">
-          {/* COLUNA ESQUERDA (histórico) — 3 cols */}
+        {/* GRID PRINCIPAL — 3 colunas */}
+        <div className="flex-1 grid grid-cols-12 min-h-0">
+          {/* ESQUERDA — histórico */}
           <div
             className="col-span-12 lg:col-span-3 border-r flex flex-col min-h-0"
             style={{ borderColor: `${theme.primary}22` }}
@@ -332,7 +375,7 @@ export function HomePage() {
             <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}22` }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="font-mono text-[9px] tracking-[0.3em]" style={{ color: `${theme.primary}66` }}>
-                  // REGISTRO
+                  // 01 · SESSÕES
                 </div>
                 <button
                   onMouseEnter={() => SFX.hover()}
@@ -343,10 +386,7 @@ export function HomePage() {
                   + NOVO
                 </button>
               </div>
-              <div
-                className="flex items-center gap-2 px-2 py-1 border-b"
-                style={{ borderColor: `${theme.primary}22` }}
-              >
+              <div className="flex items-center gap-2 px-2 py-1 border-b" style={{ borderColor: `${theme.primary}22` }}>
                 <span className="font-mono text-[10px]" style={{ color: `${theme.primary}66` }}>›</span>
                 <input
                   value={search}
@@ -372,11 +412,11 @@ export function HomePage() {
                     onMouseEnter={() => SFX.hover()}
                     onClick={() => { SFX.click(); navigate({ to: "/chat/$threadId", params: { threadId: t.id } }); }}
                     className="group px-4 py-2.5 cursor-pointer border-b transition-all flex items-center gap-3"
-                    style={{ borderColor: `${theme.primary}11` }}
+                    style={{ borderColor: `${theme.primary}0f` }}
                     onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = `${theme.primary}08`; }}
                     onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
-                    <span className="font-mono text-[9px] tabular-nums" style={{ color: `${theme.primary}44` }}>
+                    <span className="font-mono text-[9px] tabular-nums" style={{ color: `${theme.primary}55` }}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -389,13 +429,7 @@ export function HomePage() {
                       </div>
                     </div>
                     <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (!confirm("Apagar?")) return;
-                        await supabase.from("threads").delete().eq("id", t.id);
-                        setThreads((x) => x.filter((y) => y.id !== t.id));
-                        SFX.error();
-                      }}
+                      onClick={(e) => removeThread(t.id, e)}
                       className="opacity-0 group-hover:opacity-100 font-mono text-[10px] transition"
                       style={{ color: "#ef4444" }}
                     >
@@ -406,7 +440,7 @@ export function HomePage() {
               )}
             </div>
 
-            {/* User footer */}
+            {/* User */}
             <div className="px-4 py-3 border-t space-y-2" style={{ borderColor: `${theme.primary}22` }}>
               <div className="flex items-center gap-2">
                 <div
@@ -428,7 +462,7 @@ export function HomePage() {
                 <button
                   onMouseEnter={() => SFX.hover()}
                   onClick={() => navigate({ to: "/configuraciones" })}
-                  className="flex-1 py-1 font-mono text-[9px] tracking-widest border transition-all"
+                  className="flex-1 py-1 font-mono text-[9px] tracking-widest border transition-all hover:bg-white/5"
                   style={{ borderColor: `${theme.primary}33`, color: `${theme.primary}99` }}
                 >
                   CONFIG
@@ -436,7 +470,7 @@ export function HomePage() {
                 <button
                   onMouseEnter={() => SFX.hover()}
                   onClick={() => supabase.auth.signOut()}
-                  className="flex-1 py-1 font-mono text-[9px] tracking-widest border transition-all"
+                  className="flex-1 py-1 font-mono text-[9px] tracking-widest border transition-all hover:bg-red-500/10"
                   style={{ borderColor: "#ef444433", color: "#ef444499" }}
                 >
                   SAIR
@@ -445,44 +479,46 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* COLUNA CENTRAL (hero) — 6 cols */}
+          {/* CENTRO — hero */}
           <div className="col-span-12 lg:col-span-6 flex flex-col min-h-0 relative">
-            {/* Number header */}
-            <div className="px-6 py-2 border-b flex items-center justify-between font-mono text-[9px] tracking-[0.3em]" style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}>
-              <span>// 01 · CONSOLE PRINCIPAL</span>
+            <div
+              className="px-6 py-2 border-b flex items-center justify-between font-mono text-[9px] tracking-[0.3em]"
+              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}
+            >
+              <span>// 02 · CONSOLE PRINCIPAL</span>
               <span className="tabular-nums">{time.toLocaleTimeString("pt-BR")}</span>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-y-auto relative">
-              {/* Helmet à direita, off-center */}
+              {/* Helmet com anéis */}
               <div className="w-full flex items-start justify-center relative">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: booted ? 1 : 0, scale: 1 }}
-                  transition={{ duration: 1.2, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="relative translate-x-8 md:translate-x-16"
+                  transition={{ duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  className="relative translate-x-6 md:translate-x-12"
                 >
-                  {/* Crosshair */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <motion.div
                         key={i}
                         className="absolute"
                         style={{
-                          width: `${240 + i * 70}px`,
-                          height: `${240 + i * 70}px`,
+                          width: `${240 + i * 65}px`,
+                          height: `${240 + i * 65}px`,
                           border: `1px ${i % 2 === 0 ? "dashed" : "solid"} ${theme.primary}${i === 1 ? "33" : "14"}`,
                         }}
                         animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
                         transition={{ duration: 30 + i * 15, repeat: Infinity, ease: "linear" }}
                       />
                     ))}
-                    {/* Cross lines */}
                     <div className="absolute left-0 right-0 h-px" style={{ background: `${theme.primary}22` }} />
                     <div className="absolute top-0 bottom-0 w-px" style={{ background: `${theme.primary}22` }} />
                   </div>
+
                   <IronManHelmet state="idle" />
-                  {/* Annotation callouts */}
+
+                  {/* Anotações técnicas */}
                   <div className="absolute -right-2 top-8 hidden md:block">
                     <div className="flex items-center gap-2">
                       <div className="w-12 h-px" style={{ background: `${theme.primary}66` }} />
@@ -506,11 +542,11 @@ export function HomePage() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
-                transition={{ duration: 0.8, delay: 0.8 }}
-                className="w-full max-w-xl mt-6 mb-4 relative -translate-x-4"
+                transition={{ duration: 0.8, delay: 0.9 }}
+                className="w-full max-w-xl mt-4 mb-4 relative -translate-x-4"
               >
                 <div className="font-mono text-[9px] tracking-[0.4em] mb-2" style={{ color: `${theme.primary}88` }}>
-                  // 02 · DIRETIVA
+                  // 03 · DIRETIVA
                 </div>
                 <h1
                   className="text-3xl md:text-4xl leading-tight"
@@ -522,15 +558,17 @@ export function HomePage() {
                     letterSpacing: "-0.01em",
                   }}
                 >
-                  Como posso <span style={{ color: theme.primary, fontWeight: 500 }}>ajudá-lo</span>, senhor?
+                  Como posso{" "}
+                  <span style={{ color: theme.primary, fontWeight: 500 }}>ajudá-lo</span>
+                  , senhor?
                 </h1>
               </motion.div>
 
-              {/* Input — prompt terminal */}
+              {/* Input — terminal */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
-                transition={{ duration: 0.8, delay: 1 }}
+                transition={{ duration: 0.8, delay: 1.1 }}
                 className="w-full max-w-xl"
               >
                 <div
@@ -563,7 +601,10 @@ export function HomePage() {
                     onClick={send}
                     disabled={!quick.trim()}
                     className="px-4 font-mono text-[10px] tracking-widest transition-all disabled:opacity-30 shrink-0"
-                    style={{ background: quick.trim() ? theme.primary : "transparent", color: quick.trim() ? "#05070d" : theme.primary }}
+                    style={{
+                      background: quick.trim() ? theme.primary : "transparent",
+                      color: quick.trim() ? "#05070d" : theme.primary,
+                    }}
                   >
                     EXEC
                   </button>
@@ -575,22 +616,22 @@ export function HomePage() {
               </motion.div>
             </div>
 
-            {/* TERMINAL LOG — bottom */}
+            {/* Terminal log */}
             <div
-              className="border-t px-4 py-2 font-mono text-[9px] tracking-wider shrink-0 max-h-32 overflow-hidden"
+              className="border-t px-4 py-2 font-mono text-[9px] tracking-wider shrink-0 max-h-28 overflow-hidden"
               style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.6)" }}
             >
               <div className="flex items-center gap-2 mb-1" style={{ color: `${theme.primary}66` }}>
                 <span>// LOG DO SISTEMA</span>
                 <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
               </div>
-              {terminalLines.slice(-3).map((line, i) => (
+              {terminalLog.slice(-3).map((line, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="py-0.5 truncate"
-                  style={{ color: i === terminalLines.slice(-3).length - 1 ? theme.primary : `${theme.primary}66` }}
+                  style={{ color: i === terminalLog.slice(-3).length - 1 ? theme.primary : `${theme.primary}66` }}
                 >
                   {line}
                 </motion.div>
@@ -598,49 +639,78 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* COLUNA DIREITA (manifest) — 3 cols */}
+          {/* DIREITA — manifesto */}
           <div
             className="col-span-12 lg:col-span-3 border-l flex flex-col min-h-0"
             style={{ borderColor: `${theme.primary}22` }}
           >
-            <div className="px-4 py-2 border-b font-mono text-[9px] tracking-[0.3em]" style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}>
-              // 03 · MANIFESTO
+            <div
+              className="px-4 py-2 border-b font-mono text-[9px] tracking-[0.3em]"
+              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}
+            >
+              // 04 · MANIFESTO
             </div>
 
-            {/* Module 01 */}
-            <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}11` }}>
-              <div className="font-mono text-[9px] tracking-widest mb-3" style={{ color: `${theme.primary}88` }}>
-                SYS.CRITICAL
-              </div>
-              {[
-                { l: "CPU", v: 43, c: theme.primary },
-                { l: "MEM", v: 67, c: theme.accent },
-                { l: "NET", v: 82, c: theme.primary },
-                { l: "PWR", v: 98, c: "#10b981" },
-              ].map((m) => (
-                <div key={m.l} className="flex items-center gap-2 mb-1.5">
-                  <span className="font-mono text-[9px] w-8" style={{ color: `${theme.primary}88` }}>{m.l}</span>
-                  <div className="flex-1 h-0.5" style={{ background: `${theme.primary}22` }}>
-                    <motion.div
-                      className="h-full"
-                      style={{ background: m.c, boxShadow: `0 0 6px ${m.c}` }}
-                      animate={{ width: `${m.v}%` }}
-                      transition={{ duration: 1 }}
-                    />
-                  </div>
-                  <span className="font-mono text-[9px] tabular-nums w-8 text-right" style={{ color: m.c }}>
-                    {m.v}%
-                  </span>
+            {/* CPU Graph */}
+            <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}0f` }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-mono text-[9px] tracking-widest" style={{ color: `${theme.primary}88` }}>
+                  SYS.CRITICAL
                 </div>
-              ))}
+                <div className="font-mono text-[9px] tabular-nums" style={{ color: theme.primary }}>
+                  {cpuHistory[cpuHistory.length - 1].toFixed(0)}%
+                </div>
+              </div>
+
+              {/* SVG gráfico */}
+              <svg viewBox="0 0 100 30" className="w-full h-8" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={theme.primary} stopOpacity="0.3" />
+                    <stop offset="100%" stopColor={theme.primary} stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d={`${cpuPath} L 100 30 L 0 30 Z`} fill="url(#cpuGrad)" />
+                <path
+                  d={cpuPath}
+                  fill="none"
+                  stroke={theme.primary}
+                  strokeWidth="0.5"
+                  style={{ filter: `drop-shadow(0 0 2px ${theme.primary})` }}
+                />
+              </svg>
+
+              <div className="mt-3 space-y-1.5">
+                {[
+                  { l: "CPU", v: 43, c: theme.primary },
+                  { l: "MEM", v: 67, c: theme.accent },
+                  { l: "NET", v: 82, c: theme.primary },
+                  { l: "PWR", v: 98, c: "#10b981" },
+                ].map((m) => (
+                  <div key={m.l} className="flex items-center gap-2">
+                    <span className="font-mono text-[9px] w-8" style={{ color: `${theme.primary}88` }}>{m.l}</span>
+                    <div className="flex-1 h-px" style={{ background: `${theme.primary}22` }}>
+                      <motion.div
+                        className="h-full"
+                        style={{ background: m.c, boxShadow: `0 0 4px ${m.c}` }}
+                        animate={{ width: `${m.v}%` }}
+                        transition={{ duration: 1 }}
+                      />
+                    </div>
+                    <span className="font-mono text-[9px] tabular-nums w-8 text-right" style={{ color: m.c }}>
+                      {m.v}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Module 02 */}
-            <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}11` }}>
+            {/* Operator */}
+            <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}0f` }}>
               <div className="font-mono text-[9px] tracking-widest mb-3" style={{ color: `${theme.primary}88` }}>
                 ID · OPERADOR
               </div>
-              <div className="font-mono text-[10px] text-slate-300 space-y-1">
+              <div className="font-mono text-[10px] text-slate-300 space-y-1.5">
                 <div className="flex justify-between">
                   <span style={{ color: `${theme.primary}66` }}>NOME</span>
                   <span className="truncate ml-2">{user.email.split("@")[0]}</span>
@@ -653,18 +723,22 @@ export function HomePage() {
                   <span style={{ color: `${theme.primary}66` }}>STATUS</span>
                   <span style={{ color: "#10b981" }}>● ATIVO</span>
                 </div>
+                <div className="flex justify-between">
+                  <span style={{ color: `${theme.primary}66` }}>ID</span>
+                  <span className="truncate ml-2">{user.id.slice(0, 8).toUpperCase()}</span>
+                </div>
               </div>
             </div>
 
-            {/* Module 03 — recentes */}
-            <div className="px-4 py-3 border-b flex-1 overflow-y-auto" style={{ borderColor: `${theme.primary}11` }}>
+            {/* Recentes */}
+            <div className="px-4 py-3 border-b flex-1 overflow-y-auto" style={{ borderColor: `${theme.primary}0f` }}>
               <div className="font-mono text-[9px] tracking-widest mb-3" style={{ color: `${theme.primary}88` }}>
                 SESSÕES RECENTES
               </div>
               {threads.length === 0 ? (
                 <div className="font-mono text-[10px]" style={{ color: `${theme.primary}44` }}>// vazio</div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {threads.slice(0, 4).map((t) => (
                     <div
                       key={t.id}
@@ -689,7 +763,7 @@ export function HomePage() {
               )}
             </div>
 
-            {/* Footer rail */}
+            {/* Footer */}
             <div className="px-4 py-2 font-mono text-[8px] tracking-widest flex justify-between" style={{ color: `${theme.primary}44` }}>
               <span>v2.0.4</span>
               <span>© STARK 2026</span>
@@ -709,10 +783,19 @@ export function HomePage() {
             <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
             <span>SISTEMA OPERACIONAL</span>
           </div>
-          <div className="hidden md:flex items-center gap-3">
-            <span>◈ {threads.length} SESSÕES</span>
-            <span>◈ {currentPersona.code}</span>
-            <span>◈ SEC-7G</span>
+          <div className="hidden md:flex items-center gap-3 flex-1 justify-center overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={tipIndex}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="truncate"
+                style={{ color: `${theme.primary}99` }}
+              >
+                ◈ {TIPS[tipIndex]}
+              </motion.span>
+            </AnimatePresence>
           </div>
           <span>ALL SYSTEMS NOMINAL</span>
         </motion.footer>
