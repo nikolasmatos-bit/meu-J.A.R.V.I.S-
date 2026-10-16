@@ -475,7 +475,7 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* CENTRO — hero com ORBE */}
+          {/* CENTRO — hero com ORBE + efeitos de Arc Reactor */}
           <div className="col-span-12 lg:col-span-6 flex flex-col min-h-0 relative">
             <div
               className="px-6 py-2 border-b flex items-center justify-between font-mono text-[9px] tracking-[0.3em]"
@@ -486,44 +486,21 @@ export function HomePage() {
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-y-auto relative">
-              {/* ORBE DO JARVIS */}
-              <div className="relative flex items-center justify-center my-4">
-                {/* Anéis orbitais */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute"
-                      style={{
-                        width: `${340 + i * 80}px`,
-                        height: `${340 + i * 80}px`,
-                        border: `1px ${i % 2 === 0 ? "dashed" : "solid"} ${theme.primary}${i === 1 ? "44" : "14"}`,
-                        borderRadius: "50%",
-                      }}
-                      animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
-                      transition={{ duration: 30 + i * 15, repeat: Infinity, ease: "linear" }}
-                    >
-                      <div
-                        className="absolute w-2 h-2 rounded-full"
-                        style={{
-                          top: "50%",
-                          left: i % 2 === 0 ? "-4px" : "calc(100% - 4px)",
-                          background: i % 3 === 0 ? "#fbbf24" : theme.primary,
-                          boxShadow: `0 0 12px ${i % 3 === 0 ? "#fbbf24" : theme.primary}`,
-                        }}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-
-                {/* Aura de glow */}
+              {/* ORBE COM EFEITOS DO ARC REACTOR */}
+              <motion.div
+                className="relative flex items-center justify-center my-2"
+                style={{ perspective: 1200 }}
+                whileHover={{ scale: 1.03 }}
+                transition={{ duration: 0.4 }}
+              >
+                {/* Glow externo massivo */}
                 <motion.div
                   className="absolute rounded-full pointer-events-none"
                   style={{
-                    width: 500,
-                    height: 500,
+                    width: 700,
+                    height: 700,
                     background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.primary}22 30%, transparent 70%)`,
-                    filter: "blur(40px)",
+                    filter: "blur(60px)",
                   }}
                   animate={{
                     scale: [1, 1.15, 1],
@@ -532,29 +509,160 @@ export function HomePage() {
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 />
 
-                {/* Anéis pulsantes */}
+                {/* SVG com anéis elaborados */}
+                <svg
+                  className="absolute pointer-events-none"
+                  style={{ width: 620, height: 620, filter: `drop-shadow(0 0 8px ${theme.primary})` }}
+                  viewBox="0 0 620 620"
+                >
+                  <defs>
+                    <linearGradient id="orbRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor={theme.primary} />
+                      <stop offset="50%" stopColor="#ffffff" />
+                      <stop offset="100%" stopColor={theme.primary} />
+                    </linearGradient>
+                  </defs>
+
+                  <motion.circle
+                    cx="310" cy="310" r="290"
+                    fill="none" stroke={theme.primary} strokeWidth="2"
+                    strokeDasharray="90 20 15 20 60 15" opacity="0.7"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }}
+                  />
+                  <motion.circle
+                    cx="310" cy="310" r="275"
+                    fill="none" stroke={theme.primary} strokeWidth="1"
+                    strokeDasharray="3 10" opacity="0.5"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }}
+                  />
+                  {Array.from({ length: 60 }).map((_, i) => {
+                    const angle = (i * 360) / 60;
+                    const rad = (angle * Math.PI) / 180;
+                    const inner = i % 5 === 0 ? 250 : 258;
+                    const outer = i % 5 === 0 ? 270 : 264;
+                    return (
+                      <line
+                        key={`tick-${i}`}
+                        x1={310 + Math.cos(rad) * inner}
+                        y1={310 + Math.sin(rad) * inner}
+                        x2={310 + Math.cos(rad) * outer}
+                        y2={310 + Math.sin(rad) * outer}
+                        stroke={theme.primary}
+                        strokeWidth={i % 5 === 0 ? 2 : 1}
+                        opacity={i % 5 === 0 ? 0.9 : 0.3}
+                      />
+                    );
+                  })}
+                  <motion.circle
+                    cx="310" cy="310" r="235"
+                    fill="none" stroke="url(#orbRingGrad)" strokeWidth="2"
+                    strokeDasharray="30 10 60 10" opacity="0.8"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }}
+                  />
+                  <motion.circle
+                    cx="310" cy="310" r="215"
+                    fill="none" stroke={theme.primary} strokeWidth="1.5"
+                    strokeDasharray="8 6" opacity="0.6"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }}
+                  />
+                  <motion.circle
+                    cx="310" cy="310" r="195"
+                    fill="none" stroke={theme.primary} strokeWidth="3"
+                    strokeDasharray="40 200" strokeLinecap="round" opacity="0.9"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }}
+                  />
+                  <motion.circle
+                    cx="310" cy="310" r="195"
+                    fill="none" stroke={theme.primary} strokeWidth="3"
+                    strokeDasharray="40 200" strokeDashoffset="120"
+                    strokeLinecap="round" opacity="0.9"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }}
+                  />
+                </svg>
+
+                {/* Anéis DOM girando */}
                 <motion.div
-                  className="absolute rounded-full pointer-events-none"
+                  className="absolute rounded-full border-2 pointer-events-none"
                   style={{
-                    width: 340,
-                    height: 340,
-                    border: `1px solid ${theme.primary}66`,
+                    width: 520, height: 520,
+                    borderColor: "transparent",
+                    borderTopColor: theme.primary,
+                    borderRightColor: `${theme.primary}44`,
+                    filter: `drop-shadow(0 0 10px ${theme.primary})`,
                   }}
-                  animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
                 />
                 <motion.div
-                  className="absolute rounded-full pointer-events-none"
+                  className="absolute rounded-full border-2 pointer-events-none"
                   style={{
-                    width: 340,
-                    height: 340,
-                    border: `1px solid ${theme.primary}66`,
+                    width: 460, height: 460,
+                    borderColor: "transparent",
+                    borderBottomColor: "#fbbf24",
+                    borderLeftColor: "rgba(251, 191, 36, 0.3)",
+                    filter: "drop-shadow(0 0 10px #fbbf24)",
                   }}
-                  animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeOut", delay: 1.5 }}
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
                 />
 
-                {/* A ORBE com máscara circular */}
+                {/* Ondas de energia */}
+                {[0, 1, 2, 3].map((i) => (
+                  <motion.div
+                    key={`wave-${i}`}
+                    className="absolute rounded-full pointer-events-none"
+                    style={{
+                      width: 400, height: 400,
+                      border: `1.5px solid ${theme.primary}66`,
+                      boxShadow: `0 0 20px ${theme.primary}44, inset 0 0 20px ${theme.primary}22`,
+                    }}
+                    animate={{ scale: [0.8, 2.2], opacity: [0.6, 0] }}
+                    transition={{ duration: 3.5, repeat: Infinity, delay: i * 0.9, ease: "easeOut" }}
+                  />
+                ))}
+
+                {/* 24 partículas orbitando */}
+                {Array.from({ length: 24 }).map((_, i) => {
+                  const plane = i % 3;
+                  const radius = 240 + plane * 25 + (i % 4) * 8;
+                  const duration = 6 + (i % 5) * 1.5;
+                  const size = i % 5 === 0 ? "w-2 h-2" : i % 3 === 0 ? "w-1.5 h-1.5" : "w-1 h-1";
+                  const color = i % 4 === 0 ? "#ffffff" : i % 3 === 0 ? "#fbbf24" : theme.primary;
+                  const reverse = i % 2 === 0;
+
+                  return (
+                    <motion.div
+                      key={`particle-${i}`}
+                      className="absolute top-1/2 left-1/2 pointer-events-none"
+                      style={{ marginTop: -3, marginLeft: -3 }}
+                      animate={{ rotate: reverse ? -360 : 360 }}
+                      transition={{ duration, repeat: Infinity, ease: "linear" }}
+                    >
+                      <div
+                        className={`${size} rounded-full`}
+                        style={{
+                          transform: `translateX(${radius}px)`,
+                          background: color,
+                          boxShadow: `0 0 10px ${color}, 0 0 20px ${color}80`,
+                        }}
+                      />
+                    </motion.div>
+                  );
+                })}
+
+                {/* A ORBE */}
                 <motion.div
                   className="relative z-10"
                   initial={{ opacity: 0, scale: 0.7 }}
@@ -564,16 +672,13 @@ export function HomePage() {
                   <motion.div
                     className="relative"
                     style={{
-                      width: 380,
-                      height: 380,
+                      width: 340, height: 340,
                       borderRadius: "50%",
                       overflow: "hidden",
                       WebkitMaskImage: "radial-gradient(circle, black 55%, transparent 75%)",
                       maskImage: "radial-gradient(circle, black 55%, transparent 75%)",
                     }}
-                    animate={{
-                      scale: [1, 1.03, 1],
-                    }}
+                    animate={{ scale: [1, 1.03, 1] }}
                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   >
                     <motion.img
@@ -589,30 +694,33 @@ export function HomePage() {
                   </motion.div>
                 </motion.div>
 
-                {/* Texto por cima da orbe */}
+                {/* Texto central */}
                 <motion.div
-                  className="absolute z-20 pointer-events-none"
-                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  className="absolute z-20 pointer-events-none text-center"
+                  animate={{ opacity: [0.6, 1, 0.6] }}
                   transition={{ duration: 3, repeat: Infinity }}
                 >
                   <div
-                    className="font-mono text-[10px] tracking-[0.5em] text-center"
-                    style={{ color: theme.primary, textShadow: `0 0 20px ${theme.primary}` }}
+                    className="font-orbitron text-[10px] tracking-[0.4em]"
+                    style={{ color: theme.primary, textShadow: `0 0 15px ${theme.primary}` }}
                   >
-                    ◉ JARVIS
+                    JARVIS
                   </div>
-                  <div className="font-mono text-[8px] tracking-[0.4em] text-center mt-1" style={{ color: `${theme.primary}88` }}>
-                    CORE ONLINE
+                  <div
+                    className="font-mono text-[7px] tracking-[0.3em] mt-0.5"
+                    style={{ color: `${theme.primary}88` }}
+                  >
+                    v2.0.4
                   </div>
                 </motion.div>
-              </div>
+              </motion.div>
 
               {/* Hero */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
                 transition={{ duration: 0.8, delay: 0.9 }}
-                className="w-full max-w-xl mt-8 mb-4 relative"
+                className="w-full max-w-xl mt-6 mb-4 relative"
               >
                 <div className="font-mono text-[9px] tracking-[0.4em] mb-2 text-center" style={{ color: `${theme.primary}88` }}>
                   // 03 · DIRETIVA
