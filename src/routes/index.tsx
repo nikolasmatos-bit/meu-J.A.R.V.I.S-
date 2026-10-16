@@ -487,68 +487,124 @@ export function HomePage() {
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-y-auto relative">
               {/* ORBE DO JARVIS */}
-              <div className="relative flex items-center justify-center">
+              <div className="relative flex items-center justify-center my-4">
                 {/* Anéis orbitais */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  {[1, 2, 3, 4, 5].map((i) => (
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
                     <motion.div
                       key={i}
                       className="absolute"
                       style={{
-                        width: `${300 + i * 70}px`,
-                        height: `${300 + i * 70}px`,
-                        border: `1px ${i % 2 === 0 ? "dashed" : "solid"} ${theme.primary}${i === 1 ? "33" : "14"}`,
+                        width: `${340 + i * 80}px`,
+                        height: `${340 + i * 80}px`,
+                        border: `1px ${i % 2 === 0 ? "dashed" : "solid"} ${theme.primary}${i === 1 ? "44" : "14"}`,
                         borderRadius: "50%",
                       }}
                       animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
                       transition={{ duration: 30 + i * 15, repeat: Infinity, ease: "linear" }}
                     >
                       <div
-                        className="absolute w-1.5 h-1.5 rounded-full"
+                        className="absolute w-2 h-2 rounded-full"
                         style={{
                           top: "50%",
-                          left: i % 2 === 0 ? "-3px" : "calc(100% - 3px)",
+                          left: i % 2 === 0 ? "-4px" : "calc(100% - 4px)",
                           background: i % 3 === 0 ? "#fbbf24" : theme.primary,
-                          boxShadow: `0 0 10px ${i % 3 === 0 ? "#fbbf24" : theme.primary}`,
+                          boxShadow: `0 0 12px ${i % 3 === 0 ? "#fbbf24" : theme.primary}`,
                         }}
                       />
                     </motion.div>
                   ))}
                 </div>
 
-                {/* ORBE */}
-                <motion.img
-                  src="/JARVIS.webp"
-                  alt="JARVIS Core"
-                  className="w-72 h-72 md:w-80 md:h-80 object-contain relative z-10"
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{
-                    opacity: booted ? 1 : 0,
-                    scale: 1,
-                    rotate: 360,
-                  }}
-                  transition={{
-                    opacity: { duration: 1, delay: 0.5 },
-                    scale: { duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] },
-                    rotate: { duration: 90, repeat: Infinity, ease: "linear" },
-                  }}
-                  style={{
-                    filter: `drop-shadow(0 0 40px ${theme.primary}) drop-shadow(0 0 80px ${theme.glow})`,
-                    mixBlendMode: "screen",
-                  }}
-                />
-
-                {/* Pulso */}
+                {/* Aura de glow */}
                 <motion.div
                   className="absolute rounded-full pointer-events-none"
                   style={{
-                    width: 320,
-                    height: 320,
-                    border: `1px solid ${theme.primary}44`,
+                    width: 500,
+                    height: 500,
+                    background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.primary}22 30%, transparent 70%)`,
+                    filter: "blur(40px)",
                   }}
-                  animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                  animate={{
+                    scale: [1, 1.15, 1],
+                    opacity: [0.5, 0.9, 0.5],
+                  }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                />
+
+                {/* Anéis pulsantes */}
+                <motion.div
+                  className="absolute rounded-full pointer-events-none"
+                  style={{
+                    width: 340,
+                    height: 340,
+                    border: `1px solid ${theme.primary}66`,
+                  }}
+                  animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
                   transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
                 />
+                <motion.div
+                  className="absolute rounded-full pointer-events-none"
+                  style={{
+                    width: 340,
+                    height: 340,
+                    border: `1px solid ${theme.primary}66`,
+                  }}
+                  animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeOut", delay: 1.5 }}
+                />
+
+                {/* A ORBE com máscara circular */}
+                <motion.div
+                  className="relative z-10"
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: booted ? 1 : 0, scale: 1 }}
+                  transition={{ duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <motion.div
+                    className="relative"
+                    style={{
+                      width: 380,
+                      height: 380,
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      WebkitMaskImage: "radial-gradient(circle, black 55%, transparent 75%)",
+                      maskImage: "radial-gradient(circle, black 55%, transparent 75%)",
+                    }}
+                    animate={{
+                      scale: [1, 1.03, 1],
+                    }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <motion.img
+                      src="/JARVIS.webp"
+                      alt="JARVIS Core"
+                      className="w-full h-full object-contain"
+                      style={{
+                        filter: `drop-shadow(0 0 30px ${theme.primary}) drop-shadow(0 0 60px ${theme.glow}) saturate(1.3) brightness(1.1)`,
+                      }}
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 120, repeat: Infinity, ease: "linear" }}
+                    />
+                  </motion.div>
+                </motion.div>
+
+                {/* Texto por cima da orbe */}
+                <motion.div
+                  className="absolute z-20 pointer-events-none"
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                >
+                  <div
+                    className="font-mono text-[10px] tracking-[0.5em] text-center"
+                    style={{ color: theme.primary, textShadow: `0 0 20px ${theme.primary}` }}
+                  >
+                    ◉ JARVIS
+                  </div>
+                  <div className="font-mono text-[8px] tracking-[0.4em] text-center mt-1" style={{ color: `${theme.primary}88` }}>
+                    CORE ONLINE
+                  </div>
+                </motion.div>
               </div>
 
               {/* Hero */}
@@ -556,7 +612,7 @@ export function HomePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
                 transition={{ duration: 0.8, delay: 0.9 }}
-                className="w-full max-w-xl mt-6 mb-4 relative"
+                className="w-full max-w-xl mt-8 mb-4 relative"
               >
                 <div className="font-mono text-[9px] tracking-[0.4em] mb-2 text-center" style={{ color: `${theme.primary}88` }}>
                   // 03 · DIRETIVA
