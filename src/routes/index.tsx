@@ -50,7 +50,9 @@ export function HomePage() {
   const [personaOpen, setPersonaOpen] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
   const [cpuHistory, setCpuHistory] = useState<number[]>(Array(20).fill(40));
+  const [memHistory, setMemHistory] = useState<number[]>(Array(20).fill(50));
   const [terminalLog, setTerminalLog] = useState<string[]>([]);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const theme = THEMES[persona];
@@ -62,15 +64,26 @@ export function HomePage() {
   }, []);
 
   useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      setMousePos({
+        x: (e.clientX / window.innerWidth - 0.5) * 2,
+        y: (e.clientY / window.innerHeight - 0.5) * 2,
+      });
+    };
+    window.addEventListener("mousemove", handle);
+    return () => window.removeEventListener("mousemove", handle);
+  }, []);
+
+  useEffect(() => {
     let i = 0;
     const t = setInterval(() => {
       i++;
       setBootLines(i);
       if (i >= BOOT_LOG.length) {
         clearInterval(t);
-        setTimeout(() => setBooted(true), 300);
+        setTimeout(() => setBooted(true), 400);
       }
-    }, 160);
+    }, 180);
     return () => clearInterval(t);
   }, []);
 
@@ -88,26 +101,29 @@ export function HomePage() {
     if (!booted) return;
     const t = setInterval(() => {
       setCpuHistory((h) => [...h.slice(1), 30 + Math.random() * 60]);
-    }, 1200);
+      setMemHistory((h) => [...h.slice(1), 40 + Math.random() * 40]);
+    }, 1400);
     return () => clearInterval(t);
   }, [booted]);
 
   useEffect(() => {
     if (!booted) return;
     const logs = [
-      "scan :: no threats",
-      "link :: satellite OK",
-      "sync :: cloud 100%",
-      "core :: neural 98.4%",
+      "scan :: no threats detected",
+      "link :: satellite uplink OK",
+      "sync :: cloud storage 100%",
+      "core :: neural engine 98.4%",
       "auth :: operator verified",
-      "status :: all nominal",
+      "status :: all systems nominal",
+      "uplink :: latency 12ms",
+      "encryption :: AES-256 active",
     ];
     let i = 0;
     const t = setInterval(() => {
       const ts = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       setTerminalLog((prev) => [...prev.slice(-4), `${ts}  ${logs[i % logs.length]}`]);
       i++;
-    }, 3200);
+    }, 2800);
     return () => clearInterval(t);
   }, [booted]);
 
@@ -167,35 +183,63 @@ export function HomePage() {
     .map((v, i) => `${i === 0 ? "M" : "L"} ${(i / (cpuHistory.length - 1)) * 100} ${30 - (v / 100) * 30}`)
     .join(" ");
 
+  const memPath = memHistory
+    .map((v, i) => `${i === 0 ? "M" : "L"} ${(i / (memHistory.length - 1)) * 100} ${30 - (v / 100) * 30}`)
+    .join(" ");
+
   return (
-    <div className="min-h-screen text-slate-100 relative overflow-hidden bg-[#05070d]">
+    <div className="min-h-screen text-slate-100 relative overflow-hidden bg-[#03050a]">
       <MouseTrail />
 
-      {/* Blueprint grid */}
+      {/* Blueprint grid com 4 níveis */}
       <div
         className="fixed inset-0 pointer-events-none z-0"
         style={{
           backgroundImage: `
-            linear-gradient(${theme.primary}0a 1px, transparent 1px),
-            linear-gradient(90deg, ${theme.primary}0a 1px, transparent 1px),
-            linear-gradient(${theme.primary}14 1px, transparent 1px),
-            linear-gradient(90deg, ${theme.primary}14 1px, transparent 1px)
+            linear-gradient(${theme.primary}08 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.primary}08 1px, transparent 1px),
+            linear-gradient(${theme.primary}12 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.primary}12 1px, transparent 1px)
           `,
           backgroundSize: "20px 20px, 20px 20px, 100px 100px, 100px 100px",
+          transform: `translate(${mousePos.x * -8}px, ${mousePos.y * -8}px)`,
+          transition: "transform 0.8s ease-out",
         }}
       />
 
-      {/* Watermark vertical */}
+      {/* Nebulosa de fundo */}
+      <motion.div
+        className="fixed rounded-full pointer-events-none z-0"
+        style={{
+          width: "120vmax",
+          height: "120vmax",
+          top: "50%",
+          left: "50%",
+          x: "-50%",
+          y: "-50%",
+          background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.primary}11 30%, transparent 60%)`,
+          filter: "blur(100px)",
+          opacity: 0.3,
+        }}
+        animate={{
+          scale: [1, 1.1, 1],
+          opacity: [0.2, 0.4, 0.2],
+        }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* Watermark vertical gigante */}
       <div
         className="fixed top-1/2 -translate-y-1/2 font-orbitron select-none pointer-events-none z-0 hidden xl:block"
         style={{
-          right: "-1rem",
-          fontSize: "200px",
+          right: "-2rem",
+          fontSize: "240px",
           lineHeight: 1,
-          color: `${theme.primary}07`,
+          color: `${theme.primary}06`,
           writingMode: "vertical-rl",
           transform: "translateY(-50%) rotate(180deg)",
           letterSpacing: "0.05em",
+          fontWeight: 900,
         }}
       >
         {currentPersona.code}
@@ -204,7 +248,7 @@ export function HomePage() {
       {/* Rails laterais */}
       <div
         className="fixed left-0 top-0 bottom-0 w-8 border-r z-20 hidden md:flex flex-col items-center justify-between py-4"
-        style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.7)" }}
+        style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.75)" }}
       >
         <motion.div
           animate={{ rotate: 360 }}
@@ -216,7 +260,7 @@ export function HomePage() {
           className="font-mono text-[9px] tracking-[0.4em] rotate-180"
           style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}
         >
-          STARK INDUSTRIES · MK-VII
+          STARK INDUSTRIES · MK-VII · SEC-7G
         </div>
         <div
           className="font-mono text-[9px] tracking-[0.3em]"
@@ -228,7 +272,7 @@ export function HomePage() {
 
       <div
         className="fixed right-0 top-0 bottom-0 w-8 border-l z-20 hidden md:flex flex-col items-center justify-between py-4"
-        style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.7)" }}
+        style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.75)" }}
       >
         <div className="font-mono text-[9px] tracking-[0.3em]" style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}>
           LAT -23.5505
@@ -239,49 +283,89 @@ export function HomePage() {
         </div>
         <div className="w-px h-12" style={{ background: `${theme.primary}44` }} />
         <div className="font-mono text-[9px] tracking-[0.3em]" style={{ color: `${theme.primary}66`, writingMode: "vertical-rl" }}>
-          SEC-7G
+          ALT 760M
         </div>
       </div>
 
-      {/* Boot overlay */}
+      {/* Cantos HUD da tela */}
+      {booted && (
+        <>
+          <div className="fixed top-3 left-12 w-8 h-8 border-t-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}88` }} />
+          <div className="fixed top-3 right-12 w-8 h-8 border-t-2 border-r-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}88` }} />
+          <div className="fixed bottom-3 left-12 w-8 h-8 border-b-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}88` }} />
+          <div className="fixed bottom-3 right-12 w-8 h-8 border-b-2 border-r-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}88` }} />
+        </>
+      )}
+
+      {/* Boot overlay cinematográfico */}
       <AnimatePresence>
         {!booted && (
           <motion.div
             key="boot"
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="fixed inset-0 z-[500] bg-[#05070d] flex items-center justify-center px-6"
+            exit={{ opacity: 0, scale: 1.03 }}
+            transition={{ duration: 0.8 }}
+            className="fixed inset-0 z-[500] bg-[#03050a] flex items-center justify-center px-6"
           >
             <div className="font-mono text-sm w-full max-w-lg">
-              <div className="mb-6 flex items-center gap-3" style={{ color: theme.primary }}>
-                <div className="flex-1 h-px" style={{ background: `${theme.primary}44` }} />
-                <span className="text-[10px] tracking-[0.5em]">STARK MAINFRAME</span>
-                <div className="flex-1 h-px" style={{ background: `${theme.primary}44` }} />
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-8 flex items-center gap-3"
+                style={{ color: theme.primary }}
+              >
+                <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
+                <span className="text-[10px] tracking-[0.6em]">STARK MAINFRAME</span>
+                <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${theme.primary}, transparent)` }} />
+              </motion.div>
+
+              <div className="font-orbitron text-2xl tracking-[0.3em] mb-6" style={{ color: theme.primary, textShadow: `0 0 30px ${theme.primary}` }}>
+                {currentPersona.label}
               </div>
+
               {BOOT_LOG.slice(0, bootLines).map((line, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, x: -8 }}
+                  initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="py-1 flex items-center gap-3"
                   style={{ color: `${theme.primary}cc` }}
                 >
                   <span style={{ color: `${theme.primary}55` }}>[{String(i + 1).padStart(2, "0")}]</span>
                   <span className="flex-1">{line}</span>
-                  <span style={{ color: "#10b981" }}>OK</span>
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                    style={{ color: "#10b981" }}
+                  >
+                    ✓ OK
+                  </motion.span>
                 </motion.div>
               ))}
+
               {bootLines >= BOOT_LOG.length && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-6 flex items-center gap-2 text-[11px] tracking-widest"
-                  style={{ color: theme.primary }}
-                >
-                  <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary }} />
-                  READY FOR INPUT
-                </motion.div>
+                <>
+                  <div className="mt-6 h-1 w-full overflow-hidden" style={{ background: `${theme.primary}22` }}>
+                    <motion.div
+                      className="h-full"
+                      style={{ background: theme.primary, boxShadow: `0 0 20px ${theme.primary}` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 0.6 }}
+                    />
+                  </div>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="mt-4 flex items-center gap-2 text-[11px] tracking-widest"
+                    style={{ color: theme.primary }}
+                  >
+                    <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary }} />
+                    READY FOR INPUT
+                  </motion.div>
+                </>
               )}
             </div>
           </motion.div>
@@ -295,12 +379,12 @@ export function HomePage() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : -20 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="flex items-center justify-between px-6 py-3 border-b font-mono text-[10px] tracking-[0.25em] gap-4 flex-wrap"
-          style={{ borderColor: `${theme.primary}22` }}
+          className="flex items-center justify-between px-6 py-3 border-b font-mono text-[10px] tracking-[0.25em] gap-4 flex-wrap backdrop-blur-sm"
+          style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.6)" }}
         >
           <div className="flex items-center gap-4 flex-wrap" style={{ color: `${theme.primary}99` }}>
             <span className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary }} />
+              <span className="w-1.5 h-1.5 animate-pulse" style={{ background: theme.primary, boxShadow: `0 0 8px ${theme.primary}` }} />
               ONLINE
             </span>
             <span className="text-slate-700">│</span>
@@ -319,8 +403,11 @@ export function HomePage() {
             <button
               onMouseEnter={() => SFX.hover()}
               onClick={() => { SFX.menuOpen(); setPersonaOpen((v) => !v); }}
-              className="flex items-center gap-2 px-2 py-1 transition-all"
-              style={{ color: theme.primary, borderBottom: `1px solid ${theme.primary}66` }}
+              className="flex items-center gap-2 px-3 py-1 transition-all"
+              style={{
+                color: theme.primary,
+                borderBottom: `1px solid ${theme.primary}66`,
+              }}
             >
               <span className="w-1 h-1" style={{ background: theme.primary }} />
               <span>{currentPersona.label}</span>
@@ -332,8 +419,8 @@ export function HomePage() {
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="absolute top-full right-0 mt-1 z-[100] border min-w-[200px]"
-                  style={{ background: "#05070d", borderColor: `${theme.primary}44` }}
+                  className="absolute top-full right-0 mt-1 z-[100] border min-w-[220px] backdrop-blur-md"
+                  style={{ background: "rgba(3,5,10,0.95)", borderColor: `${theme.primary}44` }}
                 >
                   {PERSONAS_LIST.map((p) => {
                     const pt = THEMES[p.id];
@@ -343,7 +430,7 @@ export function HomePage() {
                         key={p.id}
                         onMouseEnter={() => SFX.hover()}
                         onClick={() => switchPersona(p.id)}
-                        className="w-full text-left px-3 py-2 text-[10px] font-mono tracking-widest transition-all flex items-center gap-2"
+                        className="w-full text-left px-3 py-2.5 text-[10px] font-mono tracking-widest transition-all flex items-center gap-2"
                         style={{
                           color: active ? pt.primary : `${theme.primary}99`,
                           background: active ? `${pt.primary}11` : "transparent",
@@ -364,10 +451,10 @@ export function HomePage() {
 
         {/* GRID PRINCIPAL */}
         <div className="flex-1 grid grid-cols-12 min-h-0">
-          {/* ESQUERDA */}
+          {/* ESQUERDA — SESSÕES */}
           <div
-            className="col-span-12 lg:col-span-3 border-r flex flex-col min-h-0"
-            style={{ borderColor: `${theme.primary}22` }}
+            className="col-span-12 lg:col-span-3 border-r flex flex-col min-h-0 backdrop-blur-sm"
+            style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.4)" }}
           >
             <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}22` }}>
               <div className="flex items-center justify-between mb-2">
@@ -377,7 +464,7 @@ export function HomePage() {
                 <button
                   onMouseEnter={() => SFX.hover()}
                   onClick={() => newThread()}
-                  className="font-mono text-[9px] tracking-[0.2em] px-2 py-0.5 transition-all"
+                  className="font-mono text-[9px] tracking-[0.2em] px-2 py-0.5 transition-all hover:bg-white/5"
                   style={{ color: theme.primary, border: `1px solid ${theme.primary}44` }}
                 >
                   + NOVO
@@ -410,8 +497,14 @@ export function HomePage() {
                     onClick={() => { SFX.click(); navigate({ to: "/chat/$threadId", params: { threadId: t.id } }); }}
                     className="group px-4 py-2.5 cursor-pointer border-b transition-all flex items-center gap-3"
                     style={{ borderColor: `${theme.primary}0f` }}
-                    onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = `${theme.primary}08`; }}
-                    onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                    onMouseOver={(e) => {
+                      (e.currentTarget as HTMLElement).style.background = `${theme.primary}08`;
+                      (e.currentTarget as HTMLElement).style.borderLeftColor = theme.primary;
+                    }}
+                    onMouseOut={(e) => {
+                      (e.currentTarget as HTMLElement).style.background = "transparent";
+                      (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent";
+                    }}
                   >
                     <span className="font-mono text-[9px] tabular-nums" style={{ color: `${theme.primary}55` }}>
                       {String(i + 1).padStart(2, "0")}
@@ -475,25 +568,25 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* CENTRO — hero com ORBE + efeitos de Arc Reactor */}
+          {/* CENTRO — HERO */}
           <div className="col-span-12 lg:col-span-6 flex flex-col min-h-0 relative">
             <div
               className="px-6 py-2 border-b flex items-center justify-between font-mono text-[9px] tracking-[0.3em]"
-              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}
+              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66`, background: "rgba(3,5,10,0.4)" }}
             >
               <span>// 02 · CONSOLE PRINCIPAL</span>
               <span className="tabular-nums">{time.toLocaleTimeString("pt-BR")}</span>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-y-auto relative">
-              {/* ORBE COM EFEITOS DO ARC REACTOR */}
+              {/* ORBE + EFEITOS */}
               <motion.div
                 className="relative flex items-center justify-center my-2"
                 style={{ perspective: 1200 }}
                 whileHover={{ scale: 1.03 }}
                 transition={{ duration: 0.4 }}
               >
-                {/* Glow externo massivo */}
+                {/* Glow massivo */}
                 <motion.div
                   className="absolute rounded-full pointer-events-none"
                   style={{
@@ -502,14 +595,11 @@ export function HomePage() {
                     background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.primary}22 30%, transparent 70%)`,
                     filter: "blur(60px)",
                   }}
-                  animate={{
-                    scale: [1, 1.15, 1],
-                    opacity: [0.5, 0.9, 0.5],
-                  }}
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.9, 0.5] }}
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 />
 
-                {/* SVG com anéis elaborados */}
+                {/* SVG com anéis */}
                 <svg
                   className="absolute pointer-events-none"
                   style={{ width: 620, height: 620, filter: `drop-shadow(0 0 8px ${theme.primary})` }}
@@ -523,78 +613,54 @@ export function HomePage() {
                     </linearGradient>
                   </defs>
 
-                  <motion.circle
-                    cx="310" cy="310" r="290"
-                    fill="none" stroke={theme.primary} strokeWidth="2"
+                  <motion.circle cx="310" cy="310" r="290" fill="none" stroke={theme.primary} strokeWidth="2"
                     strokeDasharray="90 20 15 20 60 15" opacity="0.7"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }}
-                  />
-                  <motion.circle
-                    cx="310" cy="310" r="275"
-                    fill="none" stroke={theme.primary} strokeWidth="1"
+                    animate={{ rotate: 360 }} transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }} />
+
+                  <motion.circle cx="310" cy="310" r="275" fill="none" stroke={theme.primary} strokeWidth="1"
                     strokeDasharray="3 10" opacity="0.5"
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }}
-                  />
+                    animate={{ rotate: -360 }} transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }} />
+
                   {Array.from({ length: 60 }).map((_, i) => {
                     const angle = (i * 360) / 60;
                     const rad = (angle * Math.PI) / 180;
                     const inner = i % 5 === 0 ? 250 : 258;
                     const outer = i % 5 === 0 ? 270 : 264;
                     return (
-                      <line
-                        key={`tick-${i}`}
-                        x1={310 + Math.cos(rad) * inner}
-                        y1={310 + Math.sin(rad) * inner}
-                        x2={310 + Math.cos(rad) * outer}
-                        y2={310 + Math.sin(rad) * outer}
+                      <line key={`tick-${i}`}
+                        x1={310 + Math.cos(rad) * inner} y1={310 + Math.sin(rad) * inner}
+                        x2={310 + Math.cos(rad) * outer} y2={310 + Math.sin(rad) * outer}
                         stroke={theme.primary}
                         strokeWidth={i % 5 === 0 ? 2 : 1}
-                        opacity={i % 5 === 0 ? 0.9 : 0.3}
-                      />
+                        opacity={i % 5 === 0 ? 0.9 : 0.3} />
                     );
                   })}
-                  <motion.circle
-                    cx="310" cy="310" r="235"
-                    fill="none" stroke="url(#orbRingGrad)" strokeWidth="2"
+
+                  <motion.circle cx="310" cy="310" r="235" fill="none" stroke="url(#orbRingGrad)" strokeWidth="2"
                     strokeDasharray="30 10 60 10" opacity="0.8"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }}
-                  />
-                  <motion.circle
-                    cx="310" cy="310" r="215"
-                    fill="none" stroke={theme.primary} strokeWidth="1.5"
+                    animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }} />
+
+                  <motion.circle cx="310" cy="310" r="215" fill="none" stroke={theme.primary} strokeWidth="1.5"
                     strokeDasharray="8 6" opacity="0.6"
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }}
-                  />
-                  <motion.circle
-                    cx="310" cy="310" r="195"
-                    fill="none" stroke={theme.primary} strokeWidth="3"
+                    animate={{ rotate: -360 }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px" }} />
+
+                  <motion.circle cx="310" cy="310" r="195" fill="none" stroke={theme.primary} strokeWidth="3"
                     strokeDasharray="40 200" strokeLinecap="round" opacity="0.9"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }}
-                  />
-                  <motion.circle
-                    cx="310" cy="310" r="195"
-                    fill="none" stroke={theme.primary} strokeWidth="3"
-                    strokeDasharray="40 200" strokeDashoffset="120"
-                    strokeLinecap="round" opacity="0.9"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }}
-                  />
+                    animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }} />
+
+                  <motion.circle cx="310" cy="310" r="195" fill="none" stroke={theme.primary} strokeWidth="3"
+                    strokeDasharray="40 200" strokeDashoffset="120" strokeLinecap="round" opacity="0.9"
+                    animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }} />
                 </svg>
 
-                {/* Anéis DOM girando */}
-                <motion.div
-                  className="absolute rounded-full border-2 pointer-events-none"
+                {/* Anéis DOM */}
+                <motion.div className="absolute rounded-full border-2 pointer-events-none"
                   style={{
                     width: 520, height: 520,
                     borderColor: "transparent",
@@ -602,11 +668,8 @@ export function HomePage() {
                     borderRightColor: `${theme.primary}44`,
                     filter: `drop-shadow(0 0 10px ${theme.primary})`,
                   }}
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-                />
-                <motion.div
-                  className="absolute rounded-full border-2 pointer-events-none"
+                  animate={{ rotate: 360 }} transition={{ duration: 5, repeat: Infinity, ease: "linear" }} />
+                <motion.div className="absolute rounded-full border-2 pointer-events-none"
                   style={{
                     width: 460, height: 460,
                     borderColor: "transparent",
@@ -614,26 +677,21 @@ export function HomePage() {
                     borderLeftColor: "rgba(251, 191, 36, 0.3)",
                     filter: "drop-shadow(0 0 10px #fbbf24)",
                   }}
-                  animate={{ rotate: -360 }}
-                  transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
-                />
+                  animate={{ rotate: -360 }} transition={{ duration: 7, repeat: Infinity, ease: "linear" }} />
 
                 {/* Ondas de energia */}
                 {[0, 1, 2, 3].map((i) => (
-                  <motion.div
-                    key={`wave-${i}`}
-                    className="absolute rounded-full pointer-events-none"
+                  <motion.div key={`wave-${i}`} className="absolute rounded-full pointer-events-none"
                     style={{
                       width: 400, height: 400,
                       border: `1.5px solid ${theme.primary}66`,
                       boxShadow: `0 0 20px ${theme.primary}44, inset 0 0 20px ${theme.primary}22`,
                     }}
                     animate={{ scale: [0.8, 2.2], opacity: [0.6, 0] }}
-                    transition={{ duration: 3.5, repeat: Infinity, delay: i * 0.9, ease: "easeOut" }}
-                  />
+                    transition={{ duration: 3.5, repeat: Infinity, delay: i * 0.9, ease: "easeOut" }} />
                 ))}
 
-                {/* 24 partículas orbitando */}
+                {/* Partículas orbitando */}
                 {Array.from({ length: 24 }).map((_, i) => {
                   const plane = i % 3;
                   const radius = 240 + plane * 25 + (i % 4) * 8;
@@ -643,34 +701,26 @@ export function HomePage() {
                   const reverse = i % 2 === 0;
 
                   return (
-                    <motion.div
-                      key={`particle-${i}`}
-                      className="absolute top-1/2 left-1/2 pointer-events-none"
+                    <motion.div key={`particle-${i}`} className="absolute top-1/2 left-1/2 pointer-events-none"
                       style={{ marginTop: -3, marginLeft: -3 }}
                       animate={{ rotate: reverse ? -360 : 360 }}
-                      transition={{ duration, repeat: Infinity, ease: "linear" }}
-                    >
-                      <div
-                        className={`${size} rounded-full`}
+                      transition={{ duration, repeat: Infinity, ease: "linear" }}>
+                      <div className={`${size} rounded-full`}
                         style={{
                           transform: `translateX(${radius}px)`,
                           background: color,
                           boxShadow: `0 0 10px ${color}, 0 0 20px ${color}80`,
-                        }}
-                      />
+                        }} />
                     </motion.div>
                   );
                 })}
 
                 {/* A ORBE */}
-                <motion.div
-                  className="relative z-10"
+                <motion.div className="relative z-10"
                   initial={{ opacity: 0, scale: 0.7 }}
                   animate={{ opacity: booted ? 1 : 0, scale: 1 }}
-                  transition={{ duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <motion.div
-                    className="relative"
+                  transition={{ duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+                  <motion.div className="relative"
                     style={{
                       width: 340, height: 340,
                       borderRadius: "50%",
@@ -679,37 +729,27 @@ export function HomePage() {
                       maskImage: "radial-gradient(circle, black 55%, transparent 75%)",
                     }}
                     animate={{ scale: [1, 1.03, 1] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    <motion.img
-                      src="/JARVIS.webp"
-                      alt="JARVIS Core"
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
+                    <motion.img src="/JARVIS.webp" alt="JARVIS Core"
                       className="w-full h-full object-contain"
                       style={{
                         filter: `drop-shadow(0 0 30px ${theme.primary}) drop-shadow(0 0 60px ${theme.glow}) saturate(1.3) brightness(1.1)`,
                       }}
                       animate={{ rotate: 360 }}
-                      transition={{ duration: 120, repeat: Infinity, ease: "linear" }}
-                    />
+                      transition={{ duration: 120, repeat: Infinity, ease: "linear" }} />
                   </motion.div>
                 </motion.div>
 
                 {/* Texto central */}
-                <motion.div
-                  className="absolute z-20 pointer-events-none text-center"
+                <motion.div className="absolute z-20 pointer-events-none text-center"
                   animate={{ opacity: [0.6, 1, 0.6] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                >
-                  <div
-                    className="font-orbitron text-[10px] tracking-[0.4em]"
-                    style={{ color: theme.primary, textShadow: `0 0 15px ${theme.primary}` }}
-                  >
+                  transition={{ duration: 3, repeat: Infinity }}>
+                  <div className="font-orbitron text-[10px] tracking-[0.4em]"
+                    style={{ color: theme.primary, textShadow: `0 0 15px ${theme.primary}` }}>
                     JARVIS
                   </div>
-                  <div
-                    className="font-mono text-[7px] tracking-[0.3em] mt-0.5"
-                    style={{ color: `${theme.primary}88` }}
-                  >
+                  <div className="font-mono text-[7px] tracking-[0.3em] mt-0.5"
+                    style={{ color: `${theme.primary}88` }}>
                     v2.0.4
                   </div>
                 </motion.div>
@@ -725,16 +765,14 @@ export function HomePage() {
                 <div className="font-mono text-[9px] tracking-[0.4em] mb-2 text-center" style={{ color: `${theme.primary}88` }}>
                   // 03 · DIRETIVA
                 </div>
-                <h1
-                  className="text-3xl md:text-4xl leading-tight text-center"
+                <h1 className="text-3xl md:text-4xl leading-tight text-center"
                   style={{
                     fontFamily: "Georgia, 'Times New Roman', serif",
                     fontStyle: "italic",
                     fontWeight: 400,
                     color: "#e2e8f0",
                     letterSpacing: "-0.01em",
-                  }}
-                >
+                  }}>
                   Como posso{" "}
                   <span style={{ color: theme.primary, fontWeight: 500 }}>ajudá-lo</span>
                   , senhor?
@@ -748,41 +786,30 @@ export function HomePage() {
                 transition={{ duration: 0.8, delay: 1.1 }}
                 className="w-full max-w-xl"
               >
-                <div
-                  className="flex items-stretch border transition-all duration-300"
+                <div className="flex items-stretch border transition-all duration-300"
                   style={{
                     borderColor: focused ? theme.primary : `${theme.primary}33`,
-                    background: "#05070d",
+                    background: "rgba(3,5,10,0.8)",
                     boxShadow: focused ? `0 0 0 1px ${theme.primary}33, 0 0 30px ${theme.glow}` : "none",
-                  }}
-                >
-                  <div
-                    className="flex items-center px-3 border-r font-mono text-[10px] tracking-widest shrink-0"
-                    style={{ borderColor: `${theme.primary}33`, color: theme.primary }}
-                  >
+                  }}>
+                  <div className="flex items-center px-3 border-r font-mono text-[10px] tracking-widest shrink-0"
+                    style={{ borderColor: `${theme.primary}33`, color: theme.primary }}>
                     CMD&nbsp;›
                   </div>
-                  <input
-                    ref={inputRef}
-                    value={quick}
+                  <input ref={inputRef} value={quick}
                     onChange={(e) => setQuick(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && send()}
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     placeholder="digite sua diretiva_"
                     className="flex-1 bg-transparent px-3 py-3 outline-none text-slate-100 placeholder:text-slate-700 font-mono text-sm"
-                    autoFocus
-                  />
-                  <button
-                    onMouseEnter={() => SFX.hover()}
-                    onClick={send}
-                    disabled={!quick.trim()}
+                    autoFocus />
+                  <button onMouseEnter={() => SFX.hover()} onClick={send} disabled={!quick.trim()}
                     className="px-4 font-mono text-[10px] tracking-widest transition-all disabled:opacity-30 shrink-0"
                     style={{
                       background: quick.trim() ? theme.primary : "transparent",
-                      color: quick.trim() ? "#05070d" : theme.primary,
-                    }}
-                  >
+                      color: quick.trim() ? "#03050a" : theme.primary,
+                    }}>
                     EXEC
                   </button>
                 </div>
@@ -794,83 +821,92 @@ export function HomePage() {
             </div>
 
             {/* Terminal log */}
-            <div
-              className="border-t px-4 py-2 font-mono text-[9px] tracking-wider shrink-0 max-h-28 overflow-hidden"
-              style={{ borderColor: `${theme.primary}22`, background: "rgba(5,7,13,0.6)" }}
-            >
+            <div className="border-t px-4 py-2 font-mono text-[9px] tracking-wider shrink-0 max-h-28 overflow-hidden"
+              style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.6)" }}>
               <div className="flex items-center gap-2 mb-1" style={{ color: `${theme.primary}66` }}>
                 <span>// LOG DO SISTEMA</span>
                 <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
               </div>
               {terminalLog.slice(-3).map((line, i) => (
-                <motion.div
-                  key={i}
+                <motion.div key={i}
                   initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="py-0.5 truncate"
-                  style={{ color: i === terminalLog.slice(-3).length - 1 ? theme.primary : `${theme.primary}66` }}
-                >
+                  style={{ color: i === terminalLog.slice(-3).length - 1 ? theme.primary : `${theme.primary}66` }}>
                   {line}
                 </motion.div>
               ))}
             </div>
           </div>
 
-          {/* DIREITA */}
-          <div
-            className="col-span-12 lg:col-span-3 border-l flex flex-col min-h-0"
-            style={{ borderColor: `${theme.primary}22` }}
-          >
-            <div
-              className="px-4 py-2 border-b font-mono text-[9px] tracking-[0.3em]"
-              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}
-            >
+          {/* DIREITA — MANIFESTO */}
+          <div className="col-span-12 lg:col-span-3 border-l flex flex-col min-h-0 backdrop-blur-sm"
+            style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.4)" }}>
+            <div className="px-4 py-2 border-b font-mono text-[9px] tracking-[0.3em]"
+              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}>
               // 04 · MANIFESTO
             </div>
 
             <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}0f` }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="font-mono text-[9px] tracking-widest" style={{ color: `${theme.primary}88` }}>
-                  SYS.CRITICAL
+                  CPU.LOAD
                 </div>
                 <div className="font-mono text-[9px] tabular-nums" style={{ color: theme.primary }}>
                   {cpuHistory[cpuHistory.length - 1].toFixed(0)}%
                 </div>
               </div>
-
               <svg viewBox="0 0 100 30" className="w-full h-8" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={theme.primary} stopOpacity="0.3" />
+                    <stop offset="0%" stopColor={theme.primary} stopOpacity="0.35" />
                     <stop offset="100%" stopColor={theme.primary} stopOpacity="0" />
                   </linearGradient>
                 </defs>
                 <path d={`${cpuPath} L 100 30 L 0 30 Z`} fill="url(#cpuGrad)" />
-                <path
-                  d={cpuPath}
-                  fill="none"
-                  stroke={theme.primary}
-                  strokeWidth="0.5"
-                  style={{ filter: `drop-shadow(0 0 2px ${theme.primary})` }}
-                />
+                <path d={cpuPath} fill="none" stroke={theme.primary} strokeWidth="0.5"
+                  style={{ filter: `drop-shadow(0 0 2px ${theme.primary})` }} />
               </svg>
 
-              <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between mb-2 mt-3">
+                <div className="font-mono text-[9px] tracking-widest" style={{ color: `${theme.primary}88` }}>
+                  MEM.USAGE
+                </div>
+                <div className="font-mono text-[9px] tabular-nums" style={{ color: theme.accent }}>
+                  {memHistory[memHistory.length - 1].toFixed(0)}%
+                </div>
+              </div>
+              <svg viewBox="0 0 100 30" className="w-full h-8" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={theme.accent} stopOpacity="0.35" />
+                    <stop offset="100%" stopColor={theme.accent} stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d={`${memPath} L 100 30 L 0 30 Z`} fill="url(#memGrad)" />
+                <path d={memPath} fill="none" stroke={theme.accent} strokeWidth="0.5"
+                  style={{ filter: `drop-shadow(0 0 2px ${theme.accent})` }} />
+              </svg>
+            </div>
+
+            <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}0f` }}>
+              <div className="font-mono text-[9px] tracking-widest mb-3" style={{ color: `${theme.primary}88` }}>
+                SYS.STATUS
+              </div>
+              <div className="space-y-1.5">
                 {[
-                  { l: "CPU", v: 43, c: theme.primary },
-                  { l: "MEM", v: 67, c: theme.accent },
                   { l: "NET", v: 82, c: theme.primary },
                   { l: "PWR", v: 98, c: "#10b981" },
+                  { l: "DISK", v: 34, c: theme.accent },
+                  { l: "TEMP", v: 47, c: "#fbbf24" },
                 ].map((m) => (
                   <div key={m.l} className="flex items-center gap-2">
-                    <span className="font-mono text-[9px] w-8" style={{ color: `${theme.primary}88` }}>{m.l}</span>
+                    <span className="font-mono text-[9px] w-10" style={{ color: `${theme.primary}88` }}>{m.l}</span>
                     <div className="flex-1 h-px" style={{ background: `${theme.primary}22` }}>
-                      <motion.div
-                        className="h-full"
+                      <motion.div className="h-full"
                         style={{ background: m.c, boxShadow: `0 0 4px ${m.c}` }}
                         animate={{ width: `${m.v}%` }}
-                        transition={{ duration: 1 }}
-                      />
+                        transition={{ duration: 1 }} />
                     </div>
                     <span className="font-mono text-[9px] tabular-nums w-8 text-right" style={{ color: m.c }}>
                       {m.v}%
@@ -913,12 +949,10 @@ export function HomePage() {
               ) : (
                 <div className="space-y-2.5">
                   {threads.slice(0, 4).map((t) => (
-                    <div
-                      key={t.id}
+                    <div key={t.id}
                       onMouseEnter={() => SFX.hover()}
                       onClick={() => navigate({ to: "/chat/$threadId", params: { threadId: t.id } })}
-                      className="cursor-pointer group"
-                    >
+                      className="cursor-pointer group">
                       <div className="flex items-start gap-2">
                         <span className="font-mono text-[9px] mt-0.5" style={{ color: theme.primary }}>▸</span>
                         <div className="min-w-0 flex-1">
@@ -936,7 +970,8 @@ export function HomePage() {
               )}
             </div>
 
-            <div className="px-4 py-2 font-mono text-[8px] tracking-widest flex justify-between" style={{ color: `${theme.primary}44` }}>
+            <div className="px-4 py-2 font-mono text-[8px] tracking-widest flex justify-between"
+              style={{ color: `${theme.primary}44` }}>
               <span>v2.0.4</span>
               <span>© STARK 2026</span>
             </div>
@@ -949,22 +984,19 @@ export function HomePage() {
           animate={{ opacity: booted ? 1 : 0 }}
           transition={{ delay: 1.4 }}
           className="border-t px-6 py-2 flex items-center justify-between font-mono text-[9px] tracking-[0.25em] gap-4"
-          style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}55` }}
-        >
+          style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}55`, background: "rgba(3,5,10,0.6)" }}>
           <div className="flex items-center gap-3">
             <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
             <span>SISTEMA OPERACIONAL</span>
           </div>
           <div className="hidden md:flex items-center gap-3 flex-1 justify-center overflow-hidden">
             <AnimatePresence mode="wait">
-              <motion.span
-                key={tipIndex}
+              <motion.span key={tipIndex}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
                 className="truncate"
-                style={{ color: `${theme.primary}99` }}
-              >
+                style={{ color: `${theme.primary}99` }}>
                 ◈ {TIPS[tipIndex]}
               </motion.span>
             </AnimatePresence>
