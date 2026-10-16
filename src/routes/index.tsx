@@ -53,6 +53,8 @@ export function HomePage() {
   const [memHistory, setMemHistory] = useState<number[]>(Array(20).fill(50));
   const [terminalLog, setTerminalLog] = useState<string[]>([]);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [orbHover, setOrbHover] = useState(false);
+  const [orbPulse, setOrbPulse] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const theme = THEMES[persona];
@@ -191,7 +193,6 @@ export function HomePage() {
     <div className="min-h-screen text-slate-100 relative overflow-hidden bg-[#03050a]">
       <MouseTrail />
 
-      {/* Blueprint grid com 4 níveis */}
       <div
         className="fixed inset-0 pointer-events-none z-0"
         style={{
@@ -207,7 +208,6 @@ export function HomePage() {
         }}
       />
 
-      {/* Nebulosa de fundo */}
       <motion.div
         className="fixed rounded-full pointer-events-none z-0"
         style={{
@@ -221,14 +221,10 @@ export function HomePage() {
           filter: "blur(100px)",
           opacity: 0.3,
         }}
-        animate={{
-          scale: [1, 1.1, 1],
-          opacity: [0.2, 0.4, 0.2],
-        }}
+        animate={{ scale: [1, 1.1, 1], opacity: [0.2, 0.4, 0.2] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* Watermark vertical gigante */}
       <div
         className="fixed top-1/2 -translate-y-1/2 font-orbitron select-none pointer-events-none z-0 hidden xl:block"
         style={{
@@ -245,7 +241,6 @@ export function HomePage() {
         {currentPersona.code}
       </div>
 
-      {/* Rails laterais */}
       <div
         className="fixed left-0 top-0 bottom-0 w-8 border-r z-20 hidden md:flex flex-col items-center justify-between py-4"
         style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.75)" }}
@@ -287,7 +282,6 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* Cantos HUD da tela */}
       {booted && (
         <>
           <div className="fixed top-3 left-12 w-8 h-8 border-t-2 border-l-2 z-30 pointer-events-none" style={{ borderColor: `${theme.primary}88` }} />
@@ -297,7 +291,6 @@ export function HomePage() {
         </>
       )}
 
-      {/* Boot overlay cinematográfico */}
       <AnimatePresence>
         {!booted && (
           <motion.div
@@ -372,9 +365,7 @@ export function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* CONTEÚDO */}
       <div className="relative z-10 pl-0 md:pl-8 pr-0 md:pr-8 min-h-screen flex flex-col">
-        {/* TOP BAR */}
         <motion.header
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : -20 }}
@@ -404,10 +395,7 @@ export function HomePage() {
               onMouseEnter={() => SFX.hover()}
               onClick={() => { SFX.menuOpen(); setPersonaOpen((v) => !v); }}
               className="flex items-center gap-2 px-3 py-1 transition-all"
-              style={{
-                color: theme.primary,
-                borderBottom: `1px solid ${theme.primary}66`,
-              }}
+              style={{ color: theme.primary, borderBottom: `1px solid ${theme.primary}66` }}
             >
               <span className="w-1 h-1" style={{ background: theme.primary }} />
               <span>{currentPersona.label}</span>
@@ -449,9 +437,7 @@ export function HomePage() {
           </div>
         </motion.header>
 
-        {/* GRID PRINCIPAL */}
         <div className="flex-1 grid grid-cols-12 min-h-0">
-          {/* ESQUERDA — SESSÕES */}
           <div
             className="col-span-12 lg:col-span-3 border-r flex flex-col min-h-0 backdrop-blur-sm"
             style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.4)" }}
@@ -499,11 +485,9 @@ export function HomePage() {
                     style={{ borderColor: `${theme.primary}0f` }}
                     onMouseOver={(e) => {
                       (e.currentTarget as HTMLElement).style.background = `${theme.primary}08`;
-                      (e.currentTarget as HTMLElement).style.borderLeftColor = theme.primary;
                     }}
                     onMouseOut={(e) => {
                       (e.currentTarget as HTMLElement).style.background = "transparent";
-                      (e.currentTarget as HTMLElement).style.borderLeftColor = "transparent";
                     }}
                   >
                     <span className="font-mono text-[9px] tabular-nums" style={{ color: `${theme.primary}55` }}>
@@ -568,7 +552,6 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* CENTRO — HERO */}
           <div className="col-span-12 lg:col-span-6 flex flex-col min-h-0 relative">
             <div
               className="px-6 py-2 border-b flex items-center justify-between font-mono text-[9px] tracking-[0.3em]"
@@ -579,31 +562,47 @@ export function HomePage() {
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-y-auto relative">
-              {/* ORBE + EFEITOS */}
+              {/* ORBE + EFEITOS AVANÇADOS */}
               <motion.div
                 className="relative flex items-center justify-center my-2"
-                style={{ perspective: 1200 }}
-                whileHover={{ scale: 1.03 }}
-                transition={{ duration: 0.4 }}
+                style={{ perspective: 1400 }}
+                onMouseEnter={() => setOrbHover(true)}
+                onMouseLeave={() => setOrbHover(false)}
+                onClick={() => {
+                  setOrbPulse(true);
+                  SFX.click();
+                  setTimeout(() => setOrbPulse(false), 1000);
+                }}
               >
                 {/* Glow massivo */}
                 <motion.div
                   className="absolute rounded-full pointer-events-none"
                   style={{
-                    width: 700,
-                    height: 700,
-                    background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.primary}22 30%, transparent 70%)`,
-                    filter: "blur(60px)",
+                    width: 800,
+                    height: 800,
+                    background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.primary}22 25%, transparent 60%)`,
+                    filter: "blur(70px)",
                   }}
-                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.9, 0.5] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  animate={{
+                    scale: orbHover ? 1.15 : [1, 1.1, 1],
+                    opacity: orbHover ? 1 : [0.5, 0.85, 0.5],
+                  }}
+                  transition={{
+                    scale: orbHover ? { duration: 0.6 } : { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                    opacity: orbHover ? { duration: 0.6 } : { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                  }}
                 />
 
                 {/* SVG com anéis */}
                 <svg
                   className="absolute pointer-events-none"
-                  style={{ width: 620, height: 620, filter: `drop-shadow(0 0 8px ${theme.primary})` }}
-                  viewBox="0 0 620 620"
+                  style={{
+                    width: 660,
+                    height: 660,
+                    filter: `drop-shadow(0 0 ${orbHover ? 15 : 8}px ${theme.primary})`,
+                    transition: "filter 0.4s ease",
+                  }}
+                  viewBox="0 0 660 660"
                 >
                   <defs>
                     <linearGradient id="orbRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -611,151 +610,338 @@ export function HomePage() {
                       <stop offset="50%" stopColor="#ffffff" />
                       <stop offset="100%" stopColor={theme.primary} />
                     </linearGradient>
+                    <radialGradient id="orbInnerGlow">
+                      <stop offset="0%" stopColor={theme.primary} stopOpacity="0.4" />
+                      <stop offset="100%" stopColor={theme.primary} stopOpacity="0" />
+                    </radialGradient>
                   </defs>
 
-                  <motion.circle cx="310" cy="310" r="290" fill="none" stroke={theme.primary} strokeWidth="2"
-                    strokeDasharray="90 20 15 20 60 15" opacity="0.7"
-                    animate={{ rotate: 360 }} transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }} />
+                  <circle cx="330" cy="330" r="300" fill="url(#orbInnerGlow)" />
 
-                  <motion.circle cx="310" cy="310" r="275" fill="none" stroke={theme.primary} strokeWidth="1"
-                    strokeDasharray="3 10" opacity="0.5"
-                    animate={{ rotate: -360 }} transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }} />
+                  <motion.circle
+                    cx="330" cy="330" r="310"
+                    fill="none" stroke={theme.primary} strokeWidth={orbHover ? 3 : 2}
+                    strokeDasharray="90 20 15 20 60 15" opacity={orbHover ? 1 : 0.7}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "330px 330px", transition: "stroke-width 0.3s, opacity 0.3s" }}
+                  />
+
+                  <motion.circle
+                    cx="330" cy="330" r="295"
+                    fill="none" stroke={theme.primary} strokeWidth="1"
+                    strokeDasharray="3 10" opacity={orbHover ? 0.8 : 0.5}
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "330px 330px", transition: "opacity 0.3s" }}
+                  />
 
                   {Array.from({ length: 60 }).map((_, i) => {
                     const angle = (i * 360) / 60;
                     const rad = (angle * Math.PI) / 180;
-                    const inner = i % 5 === 0 ? 250 : 258;
-                    const outer = i % 5 === 0 ? 270 : 264;
+                    const inner = i % 5 === 0 ? 270 : 278;
+                    const outer = i % 5 === 0 ? 292 : 284;
                     return (
-                      <line key={`tick-${i}`}
-                        x1={310 + Math.cos(rad) * inner} y1={310 + Math.sin(rad) * inner}
-                        x2={310 + Math.cos(rad) * outer} y2={310 + Math.sin(rad) * outer}
+                      <line
+                        key={`tick-${i}`}
+                        x1={330 + Math.cos(rad) * inner}
+                        y1={330 + Math.sin(rad) * inner}
+                        x2={330 + Math.cos(rad) * outer}
+                        y2={330 + Math.sin(rad) * outer}
                         stroke={theme.primary}
                         strokeWidth={i % 5 === 0 ? 2 : 1}
-                        opacity={i % 5 === 0 ? 0.9 : 0.3} />
+                        opacity={i % 5 === 0 ? (orbHover ? 1 : 0.9) : orbHover ? 0.5 : 0.3}
+                        style={{ transition: "opacity 0.3s" }}
+                      />
                     );
                   })}
 
-                  <motion.circle cx="310" cy="310" r="235" fill="none" stroke="url(#orbRingGrad)" strokeWidth="2"
-                    strokeDasharray="30 10 60 10" opacity="0.8"
-                    animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }} />
+                  <motion.circle
+                    cx="330" cy="330" r="250"
+                    fill="none" stroke="url(#orbRingGrad)" strokeWidth="2"
+                    strokeDasharray="30 10 60 10" opacity={orbHover ? 1 : 0.8}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "330px 330px", transition: "opacity 0.3s" }}
+                  />
 
-                  <motion.circle cx="310" cy="310" r="215" fill="none" stroke={theme.primary} strokeWidth="1.5"
-                    strokeDasharray="8 6" opacity="0.6"
-                    animate={{ rotate: -360 }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px" }} />
+                  <motion.circle
+                    cx="330" cy="330" r="228"
+                    fill="none" stroke={theme.primary} strokeWidth="1.5"
+                    strokeDasharray="8 6" opacity={orbHover ? 0.9 : 0.6}
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    style={{ transformOrigin: "330px 330px", transition: "opacity 0.3s" }}
+                  />
 
-                  <motion.circle cx="310" cy="310" r="195" fill="none" stroke={theme.primary} strokeWidth="3"
+                  <motion.circle
+                    cx="330" cy="330" r="205"
+                    fill="none" stroke={theme.primary} strokeWidth={orbHover ? 4 : 3}
                     strokeDasharray="40 200" strokeLinecap="round" opacity="0.9"
-                    animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }} />
-
-                  <motion.circle cx="310" cy="310" r="195" fill="none" stroke={theme.primary} strokeWidth="3"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{
+                      transformOrigin: "330px 330px",
+                      filter: `drop-shadow(0 0 ${orbHover ? 10 : 6}px ${theme.primary})`,
+                      transition: "stroke-width 0.3s, filter 0.3s",
+                    }}
+                  />
+                  <motion.circle
+                    cx="330" cy="330" r="205"
+                    fill="none" stroke={theme.primary} strokeWidth={orbHover ? 4 : 3}
                     strokeDasharray="40 200" strokeDashoffset="120" strokeLinecap="round" opacity="0.9"
-                    animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                    style={{ transformOrigin: "310px 310px", filter: `drop-shadow(0 0 6px ${theme.primary})` }} />
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{
+                      transformOrigin: "330px 330px",
+                      filter: `drop-shadow(0 0 ${orbHover ? 10 : 6}px ${theme.primary})`,
+                      transition: "stroke-width 0.3s, filter 0.3s",
+                    }}
+                  />
                 </svg>
 
-                {/* Anéis DOM */}
-                <motion.div className="absolute rounded-full border-2 pointer-events-none"
+                <motion.div
+                  className="absolute rounded-full border-2 pointer-events-none"
                   style={{
-                    width: 520, height: 520,
+                    width: 550, height: 550,
                     borderColor: "transparent",
                     borderTopColor: theme.primary,
                     borderRightColor: `${theme.primary}44`,
-                    filter: `drop-shadow(0 0 10px ${theme.primary})`,
+                    filter: `drop-shadow(0 0 ${orbHover ? 15 : 10}px ${theme.primary})`,
+                    transition: "filter 0.3s",
                   }}
-                  animate={{ rotate: 360 }} transition={{ duration: 5, repeat: Infinity, ease: "linear" }} />
-                <motion.div className="absolute rounded-full border-2 pointer-events-none"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: orbHover ? 2.5 : 5, repeat: Infinity, ease: "linear" }}
+                />
+                <motion.div
+                  className="absolute rounded-full border-2 pointer-events-none"
                   style={{
-                    width: 460, height: 460,
+                    width: 480, height: 480,
                     borderColor: "transparent",
                     borderBottomColor: "#fbbf24",
                     borderLeftColor: "rgba(251, 191, 36, 0.3)",
-                    filter: "drop-shadow(0 0 10px #fbbf24)",
+                    filter: `drop-shadow(0 0 ${orbHover ? 15 : 10}px #fbbf24)`,
+                    transition: "filter 0.3s",
                   }}
-                  animate={{ rotate: -360 }} transition={{ duration: 7, repeat: Infinity, ease: "linear" }} />
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: orbHover ? 3.5 : 7, repeat: Infinity, ease: "linear" }}
+                />
 
-                {/* Ondas de energia */}
                 {[0, 1, 2, 3].map((i) => (
-                  <motion.div key={`wave-${i}`} className="absolute rounded-full pointer-events-none"
+                  <motion.div
+                    key={`wave-${i}`}
+                    className="absolute rounded-full pointer-events-none"
                     style={{
-                      width: 400, height: 400,
-                      border: `1.5px solid ${theme.primary}66`,
-                      boxShadow: `0 0 20px ${theme.primary}44, inset 0 0 20px ${theme.primary}22`,
+                      width: 420, height: 420,
+                      border: `1.5px solid ${theme.primary}${orbHover ? "99" : "66"}`,
+                      boxShadow: `0 0 20px ${theme.primary}${orbHover ? "66" : "44"}, inset 0 0 20px ${theme.primary}22`,
                     }}
-                    animate={{ scale: [0.8, 2.2], opacity: [0.6, 0] }}
-                    transition={{ duration: 3.5, repeat: Infinity, delay: i * 0.9, ease: "easeOut" }} />
+                    animate={{ scale: orbHover ? [0.9, 2.5] : [0.8, 2.2], opacity: [0.7, 0] }}
+                    transition={{ duration: orbHover ? 2.5 : 3.5, repeat: Infinity, delay: i * 0.7, ease: "easeOut" }}
+                  />
                 ))}
 
-                {/* Partículas orbitando */}
-                {Array.from({ length: 24 }).map((_, i) => {
+                <AnimatePresence>
+                  {orbPulse && (
+                    <>
+                      <motion.div
+                        key="pulse1"
+                        className="absolute rounded-full pointer-events-none"
+                        style={{
+                          width: 420, height: 420,
+                          border: `3px solid ${theme.primary}`,
+                          boxShadow: `0 0 60px ${theme.primary}, inset 0 0 40px ${theme.primary}66`,
+                        }}
+                        initial={{ scale: 0.8, opacity: 1 }}
+                        animate={{ scale: 3.5, opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1.2, ease: "easeOut" }}
+                      />
+                      <motion.div
+                        key="pulse2"
+                        className="absolute rounded-full pointer-events-none"
+                        style={{
+                          width: 420, height: 420,
+                          border: `2px solid ${theme.primary}`,
+                        }}
+                        initial={{ scale: 0.8, opacity: 1 }}
+                        animate={{ scale: 4.5, opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1.4, ease: "easeOut", delay: 0.15 }}
+                      />
+                    </>
+                  )}
+                </AnimatePresence>
+
+                {Array.from({ length: 32 }).map((_, i) => {
                   const plane = i % 3;
-                  const radius = 240 + plane * 25 + (i % 4) * 8;
-                  const duration = 6 + (i % 5) * 1.5;
+                  const radius = (250 + plane * 25 + (i % 4) * 8) * (orbHover ? 1.05 : 1);
+                  const duration = (6 + (i % 5) * 1.5) / (orbHover ? 2 : 1);
                   const size = i % 5 === 0 ? "w-2 h-2" : i % 3 === 0 ? "w-1.5 h-1.5" : "w-1 h-1";
                   const color = i % 4 === 0 ? "#ffffff" : i % 3 === 0 ? "#fbbf24" : theme.primary;
                   const reverse = i % 2 === 0;
 
                   return (
-                    <motion.div key={`particle-${i}`} className="absolute top-1/2 left-1/2 pointer-events-none"
+                    <motion.div
+                      key={`particle-${i}`}
+                      className="absolute top-1/2 left-1/2 pointer-events-none"
                       style={{ marginTop: -3, marginLeft: -3 }}
                       animate={{ rotate: reverse ? -360 : 360 }}
-                      transition={{ duration, repeat: Infinity, ease: "linear" }}>
-                      <div className={`${size} rounded-full`}
+                      transition={{ duration, repeat: Infinity, ease: "linear" }}
+                    >
+                      <div
+                        className={`${size} rounded-full`}
                         style={{
                           transform: `translateX(${radius}px)`,
                           background: color,
-                          boxShadow: `0 0 10px ${color}, 0 0 20px ${color}80`,
-                        }} />
+                          boxShadow: `0 0 ${orbHover ? 15 : 10}px ${color}, 0 0 ${orbHover ? 30 : 20}px ${color}80`,
+                          transition: "box-shadow 0.3s",
+                        }}
+                      />
                     </motion.div>
                   );
                 })}
 
-                {/* A ORBE */}
-                <motion.div className="relative z-10"
+                <motion.div
+                  className="relative z-10 cursor-pointer"
                   initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: booted ? 1 : 0, scale: 1 }}
-                  transition={{ duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}>
-                  <motion.div className="relative"
+                  animate={{
+                    opacity: booted ? 1 : 0,
+                    scale: orbPulse ? 1.15 : orbHover ? 1.08 : 1,
+                    rotateY: mousePos.x * (orbHover ? 12 : 6),
+                    rotateX: -mousePos.y * (orbHover ? 12 : 6),
+                  }}
+                  transition={{
+                    opacity: { duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] },
+                    scale: { duration: orbPulse ? 0.3 : 0.6, ease: [0.16, 1, 0.3, 1] },
+                    rotateY: { type: "spring", stiffness: 80, damping: 15 },
+                    rotateX: { type: "spring", stiffness: 80, damping: 15 },
+                  }}
+                  style={{ transformStyle: "preserve-3d" }}
+                >
+                  <motion.div
+                    className="absolute -inset-2 rounded-full pointer-events-none"
                     style={{
-                      width: 340, height: 340,
+                      background: `conic-gradient(from 0deg, transparent, ${theme.primary}66, transparent, ${theme.primary}66, transparent)`,
+                      filter: "blur(15px)",
+                      opacity: orbHover ? 1 : 0.6,
+                    }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                  />
+
+                  <motion.div
+                    className="relative"
+                    style={{
+                      width: 360,
+                      height: 360,
                       borderRadius: "50%",
                       overflow: "hidden",
-                      WebkitMaskImage: "radial-gradient(circle, black 55%, transparent 75%)",
-                      maskImage: "radial-gradient(circle, black 55%, transparent 75%)",
+                      WebkitMaskImage: "radial-gradient(circle, black 58%, transparent 78%)",
+                      maskImage: "radial-gradient(circle, black 58%, transparent 78%)",
                     }}
-                    animate={{ scale: [1, 1.03, 1] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
-                    <motion.img src="/JARVIS.webp" alt="JARVIS Core"
+                    animate={{ scale: [1, 1.04, 1] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <motion.img
+                      src="/JARVIS.webp"
+                      alt="JARVIS Core"
                       className="w-full h-full object-contain"
                       style={{
-                        filter: `drop-shadow(0 0 30px ${theme.primary}) drop-shadow(0 0 60px ${theme.glow}) saturate(1.3) brightness(1.1)`,
+                        filter: `drop-shadow(0 0 ${orbHover ? 50 : 30}px ${theme.primary}) drop-shadow(0 0 ${orbHover ? 100 : 60}px ${theme.glow}) saturate(${orbHover ? 1.5 : 1.3}) brightness(${orbHover ? 1.2 : 1.1})`,
+                        transition: "filter 0.4s ease",
                       }}
                       animate={{ rotate: 360 }}
-                      transition={{ duration: 120, repeat: Infinity, ease: "linear" }} />
+                      transition={{ duration: orbHover ? 60 : 120, repeat: Infinity, ease: "linear" }}
+                    />
+
+                    <motion.div
+                      className="absolute inset-8 rounded-full border-2 pointer-events-none"
+                      style={{
+                        borderColor: "transparent",
+                        borderTopColor: `${theme.primary}aa`,
+                        borderRightColor: `${theme.primary}44`,
+                      }}
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                    />
+                    <motion.div
+                      className="absolute inset-16 rounded-full border pointer-events-none"
+                      style={{
+                        borderColor: "transparent",
+                        borderBottomColor: "#fbbf24aa",
+                        borderLeftColor: "#fbbf2444",
+                      }}
+                      animate={{ rotate: -360 }}
+                      transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+                    />
+
+                    <motion.div
+                      className="absolute left-0 right-0 h-16 pointer-events-none"
+                      style={{
+                        background: `linear-gradient(180deg, transparent, ${theme.primary}cc, transparent)`,
+                        mixBlendMode: "screen",
+                      }}
+                      animate={{ top: ["-10%", "110%"] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
+                    />
+
+                    <motion.div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{
+                        background: `radial-gradient(circle at 50% 20%, ${theme.primary}33, transparent 50%)`,
+                        opacity: orbHover ? 1 : 0.6,
+                        transition: "opacity 0.3s",
+                      }}
+                    />
+                  </motion.div>
+
+                  <motion.div
+                    className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                    animate={{ opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 2.5, repeat: Infinity }}
+                  >
+                    <div
+                      className="font-orbitron text-[11px] tracking-[0.5em]"
+                      style={{
+                        color: theme.primary,
+                        textShadow: `0 0 ${orbHover ? 25 : 15}px ${theme.primary}`,
+                        transition: "text-shadow 0.3s",
+                      }}
+                    >
+                      JARVIS
+                    </div>
+                    <div
+                      className="font-mono text-[7px] tracking-[0.35em] mt-1"
+                      style={{ color: `${theme.primary}aa` }}
+                    >
+                      v2.0.4
+                    </div>
+                    <motion.div
+                      className="w-8 h-px mt-1.5"
+                      style={{ background: theme.primary }}
+                      animate={{ width: orbHover ? [8, 32, 8] : 8, opacity: [0.4, 1, 0.4] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
                   </motion.div>
                 </motion.div>
 
-                {/* Texto central */}
-                <motion.div className="absolute z-20 pointer-events-none text-center"
-                  animate={{ opacity: [0.6, 1, 0.6] }}
-                  transition={{ duration: 3, repeat: Infinity }}>
-                  <div className="font-orbitron text-[10px] tracking-[0.4em]"
-                    style={{ color: theme.primary, textShadow: `0 0 15px ${theme.primary}` }}>
-                    JARVIS
-                  </div>
-                  <div className="font-mono text-[7px] tracking-[0.3em] mt-0.5"
-                    style={{ color: `${theme.primary}88` }}>
-                    v2.0.4
-                  </div>
-                </motion.div>
+                <AnimatePresence>
+                  {orbHover && !orbPulse && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute -bottom-6 left-1/2 -translate-x-1/2 pointer-events-none"
+                    >
+                      <div className="font-mono text-[9px] tracking-widest" style={{ color: `${theme.primary}aa` }}>
+                        ◆ CLIQUE PARA LIBERAR ENERGIA
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
 
-              {/* Hero */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
@@ -765,51 +951,63 @@ export function HomePage() {
                 <div className="font-mono text-[9px] tracking-[0.4em] mb-2 text-center" style={{ color: `${theme.primary}88` }}>
                   // 03 · DIRETIVA
                 </div>
-                <h1 className="text-3xl md:text-4xl leading-tight text-center"
+                <h1
+                  className="text-3xl md:text-4xl leading-tight text-center"
                   style={{
                     fontFamily: "Georgia, 'Times New Roman', serif",
                     fontStyle: "italic",
                     fontWeight: 400,
                     color: "#e2e8f0",
                     letterSpacing: "-0.01em",
-                  }}>
+                  }}
+                >
                   Como posso{" "}
                   <span style={{ color: theme.primary, fontWeight: 500 }}>ajudá-lo</span>
                   , senhor?
                 </h1>
               </motion.div>
 
-              {/* Input */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
                 transition={{ duration: 0.8, delay: 1.1 }}
                 className="w-full max-w-xl"
               >
-                <div className="flex items-stretch border transition-all duration-300"
+                <div
+                  className="flex items-stretch border transition-all duration-300"
                   style={{
                     borderColor: focused ? theme.primary : `${theme.primary}33`,
                     background: "rgba(3,5,10,0.8)",
                     boxShadow: focused ? `0 0 0 1px ${theme.primary}33, 0 0 30px ${theme.glow}` : "none",
-                  }}>
-                  <div className="flex items-center px-3 border-r font-mono text-[10px] tracking-widest shrink-0"
-                    style={{ borderColor: `${theme.primary}33`, color: theme.primary }}>
+                  }}
+                >
+                  <div
+                    className="flex items-center px-3 border-r font-mono text-[10px] tracking-widest shrink-0"
+                    style={{ borderColor: `${theme.primary}33`, color: theme.primary }}
+                  >
                     CMD&nbsp;›
                   </div>
-                  <input ref={inputRef} value={quick}
+                  <input
+                    ref={inputRef}
+                    value={quick}
                     onChange={(e) => setQuick(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && send()}
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     placeholder="digite sua diretiva_"
                     className="flex-1 bg-transparent px-3 py-3 outline-none text-slate-100 placeholder:text-slate-700 font-mono text-sm"
-                    autoFocus />
-                  <button onMouseEnter={() => SFX.hover()} onClick={send} disabled={!quick.trim()}
+                    autoFocus
+                  />
+                  <button
+                    onMouseEnter={() => SFX.hover()}
+                    onClick={send}
+                    disabled={!quick.trim()}
                     className="px-4 font-mono text-[10px] tracking-widest transition-all disabled:opacity-30 shrink-0"
                     style={{
                       background: quick.trim() ? theme.primary : "transparent",
                       color: quick.trim() ? "#03050a" : theme.primary,
-                    }}>
+                    }}
+                  >
                     EXEC
                   </button>
                 </div>
@@ -820,30 +1018,36 @@ export function HomePage() {
               </motion.div>
             </div>
 
-            {/* Terminal log */}
-            <div className="border-t px-4 py-2 font-mono text-[9px] tracking-wider shrink-0 max-h-28 overflow-hidden"
-              style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.6)" }}>
+            <div
+              className="border-t px-4 py-2 font-mono text-[9px] tracking-wider shrink-0 max-h-28 overflow-hidden"
+              style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.6)" }}
+            >
               <div className="flex items-center gap-2 mb-1" style={{ color: `${theme.primary}66` }}>
                 <span>// LOG DO SISTEMA</span>
                 <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
               </div>
               {terminalLog.slice(-3).map((line, i) => (
-                <motion.div key={i}
+                <motion.div
+                  key={i}
                   initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="py-0.5 truncate"
-                  style={{ color: i === terminalLog.slice(-3).length - 1 ? theme.primary : `${theme.primary}66` }}>
+                  style={{ color: i === terminalLog.slice(-3).length - 1 ? theme.primary : `${theme.primary}66` }}
+                >
                   {line}
                 </motion.div>
               ))}
             </div>
           </div>
 
-          {/* DIREITA — MANIFESTO */}
-          <div className="col-span-12 lg:col-span-3 border-l flex flex-col min-h-0 backdrop-blur-sm"
-            style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.4)" }}>
-            <div className="px-4 py-2 border-b font-mono text-[9px] tracking-[0.3em]"
-              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}>
+          <div
+            className="col-span-12 lg:col-span-3 border-l flex flex-col min-h-0 backdrop-blur-sm"
+            style={{ borderColor: `${theme.primary}22`, background: "rgba(3,5,10,0.4)" }}
+          >
+            <div
+              className="px-4 py-2 border-b font-mono text-[9px] tracking-[0.3em]"
+              style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}66` }}
+            >
               // 04 · MANIFESTO
             </div>
 
@@ -864,8 +1068,13 @@ export function HomePage() {
                   </linearGradient>
                 </defs>
                 <path d={`${cpuPath} L 100 30 L 0 30 Z`} fill="url(#cpuGrad)" />
-                <path d={cpuPath} fill="none" stroke={theme.primary} strokeWidth="0.5"
-                  style={{ filter: `drop-shadow(0 0 2px ${theme.primary})` }} />
+                <path
+                  d={cpuPath}
+                  fill="none"
+                  stroke={theme.primary}
+                  strokeWidth="0.5"
+                  style={{ filter: `drop-shadow(0 0 2px ${theme.primary})` }}
+                />
               </svg>
 
               <div className="flex items-center justify-between mb-2 mt-3">
@@ -884,8 +1093,13 @@ export function HomePage() {
                   </linearGradient>
                 </defs>
                 <path d={`${memPath} L 100 30 L 0 30 Z`} fill="url(#memGrad)" />
-                <path d={memPath} fill="none" stroke={theme.accent} strokeWidth="0.5"
-                  style={{ filter: `drop-shadow(0 0 2px ${theme.accent})` }} />
+                <path
+                  d={memPath}
+                  fill="none"
+                  stroke={theme.accent}
+                  strokeWidth="0.5"
+                  style={{ filter: `drop-shadow(0 0 2px ${theme.accent})` }}
+                />
               </svg>
             </div>
 
@@ -903,10 +1117,12 @@ export function HomePage() {
                   <div key={m.l} className="flex items-center gap-2">
                     <span className="font-mono text-[9px] w-10" style={{ color: `${theme.primary}88` }}>{m.l}</span>
                     <div className="flex-1 h-px" style={{ background: `${theme.primary}22` }}>
-                      <motion.div className="h-full"
+                      <motion.div
+                        className="h-full"
                         style={{ background: m.c, boxShadow: `0 0 4px ${m.c}` }}
                         animate={{ width: `${m.v}%` }}
-                        transition={{ duration: 1 }} />
+                        transition={{ duration: 1 }}
+                      />
                     </div>
                     <span className="font-mono text-[9px] tabular-nums w-8 text-right" style={{ color: m.c }}>
                       {m.v}%
@@ -949,10 +1165,12 @@ export function HomePage() {
               ) : (
                 <div className="space-y-2.5">
                   {threads.slice(0, 4).map((t) => (
-                    <div key={t.id}
+                    <div
+                      key={t.id}
                       onMouseEnter={() => SFX.hover()}
                       onClick={() => navigate({ to: "/chat/$threadId", params: { threadId: t.id } })}
-                      className="cursor-pointer group">
+                      className="cursor-pointer group"
+                    >
                       <div className="flex items-start gap-2">
                         <span className="font-mono text-[9px] mt-0.5" style={{ color: theme.primary }}>▸</span>
                         <div className="min-w-0 flex-1">
@@ -970,33 +1188,34 @@ export function HomePage() {
               )}
             </div>
 
-            <div className="px-4 py-2 font-mono text-[8px] tracking-widest flex justify-between"
-              style={{ color: `${theme.primary}44` }}>
+            <div className="px-4 py-2 font-mono text-[8px] tracking-widest flex justify-between" style={{ color: `${theme.primary}44` }}>
               <span>v2.0.4</span>
               <span>© STARK 2026</span>
             </div>
           </div>
         </div>
 
-        {/* Bottom bar */}
         <motion.footer
           initial={{ opacity: 0 }}
           animate={{ opacity: booted ? 1 : 0 }}
           transition={{ delay: 1.4 }}
           className="border-t px-6 py-2 flex items-center justify-between font-mono text-[9px] tracking-[0.25em] gap-4"
-          style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}55`, background: "rgba(3,5,10,0.6)" }}>
+          style={{ borderColor: `${theme.primary}22`, color: `${theme.primary}55`, background: "rgba(3,5,10,0.6)" }}
+        >
           <div className="flex items-center gap-3">
             <span className="w-1 h-1 animate-pulse" style={{ background: theme.primary }} />
             <span>SISTEMA OPERACIONAL</span>
           </div>
           <div className="hidden md:flex items-center gap-3 flex-1 justify-center overflow-hidden">
             <AnimatePresence mode="wait">
-              <motion.span key={tipIndex}
+              <motion.span
+                key={tipIndex}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
                 className="truncate"
-                style={{ color: `${theme.primary}99` }}>
+                style={{ color: `${theme.primary}99` }}
+              >
                 ◈ {TIPS[tipIndex]}
               </motion.span>
             </AnimatePresence>
