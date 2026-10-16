@@ -39,7 +39,7 @@ type Settings = {
 const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
 
 // ============================================
-// DEFINIÇÃO DAS FERRAMENTAS (JSON Schema)
+// DEFINIÇÃO DAS FERRAMENTAS
 // ============================================
 const TOOLS = [
   {
@@ -261,7 +261,7 @@ async function callGroq(
 }
 
 // ============================================
-// HANDLER PRINCIPAL COM FUNCTION CALLING
+// HANDLER PRINCIPAL
 // ============================================
 export default async function handler(req: Request) {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -295,7 +295,7 @@ export default async function handler(req: Request) {
     for (const model of MODELS) {
       try {
         // ============================================
-        // PASSO 1: PRIMEIRA CHAMADA COM TOOLS
+        // PASSO 1: CHAMADA COM TOOLS (não-stream)
         // ============================================
         console.log(`[JARVIS] chamada inicial com ${model}`);
 
@@ -304,9 +304,9 @@ export default async function handler(req: Request) {
           systemPrompt,
           trimmedMessages,
           temperature,
-          false, // sempre não-stream na primeira
+          false,
           2000,
-          true // com tools
+          true
         );
 
         if (!firstRes.ok) {
@@ -324,7 +324,6 @@ export default async function handler(req: Request) {
         if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
           console.log(`[JARVIS] ${assistantMessage.tool_calls.length} tool_call(s) detectado(s)`);
 
-          // Executa todas as ferramentas em paralelo
           const toolResults = await Promise.all(
             assistantMessage.tool_calls.map(async (tc: any) => {
               const fnName = tc.function.name;
@@ -338,16 +337,13 @@ export default async function handler(req: Request) {
             })
           );
 
-          // Monta a conversa com o pedido do modelo + resultados
           const conversationWithTools = [
             ...trimmedMessages,
-            assistantMessage, // a mensagem do assistant com tool_calls
-            ...toolResults,   // os resultados das ferramentas
+            assistantMessage,
+            ...toolResults,
           ];
 
-          // ============================================
-          // PASSO 3: SEGUNDA CHAMADA (com resultados) - stream
-          // ============================================
+          // Segunda chamada com resultados (streaming)
           console.log(`[JARVIS] segunda chamada (com resultados)`);
 
           const secondRes = await callGroq(
@@ -357,7 +353,7 @@ export default async function handler(req: Request) {
             temperature,
             stream,
             3000,
-            false // sem tools na segunda (já resolveu)
+            false
           );
 
           if (secondRes.ok) {
@@ -380,9 +376,37 @@ export default async function handler(req: Request) {
         }
 
         // ============================================
-        // SEM TOOL CALLS: RESPOSTA DIRETA
+        // PASSO 3: SEM TOOL CALLS → RESPOSTA DIRETA
         // ============================================
         console.log(`[JARVIS] resposta direta (sem tools)`);
+
+        // ✅ FIX: se o cliente pediu stream, faz nova chamada COM stream
+        if (stream) {
+          const streamRes = await callGroq(
+            model,
+            systemPrompt,
+            trimmedMessages,
+            temperature,
+            true,
+            2500,
+            false // sem tools (já decidiu que não precisa)
+          );
+
+          if (streamRes.ok) {
+            return new Response(streamRes.body, {
+              headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+              },
+            });
+          }
+
+          lastError = `${model} (stream direto): ${streamRes.status}`;
+          continue;
+        }
+
+        // Se não pediu stream, retorna JSON normal
         const content = assistantMessage?.content ?? "Sem resposta.";
         return Response.json({ content });
       } catch (e: any) {
