@@ -11,14 +11,14 @@ const PERSONAS: Record<string, string> = {
 };
 
 // ============================================
-// MODOS DE RACIOCÍNIO
+// MODOS
 // ============================================
 const MODES_PROMPT: Record<string, string> = {
   fast: "MODO RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos.",
-  deep: "MODO PROFUNDO: raciocine passo a passo antes de responder.",
+  deep: "MODO PROFUNDO: seja detalhado, preciso e raciocine passo a passo.",
   creative: "MODO CRIATIVO: use metáforas vívidas e imaginação fértil.",
-  expert: "MODO EXPERT: seja técnico, preciso e detalhado.",
-  debate: "MODO DEBATE: apresente argumentos dos DOIS lados.",
+  expert: "MODO EXPERT: seja técnico, preciso e detalhado. Terminologia correta.",
+  debate: "MODO DEBATE: apresente argumentos dos DOIS lados. No final, dê sua síntese.",
   roleplay: "MODO ROLEPLAY: assuma completamente qualquer personagem pedido.",
 };
 
@@ -28,12 +28,25 @@ const MODES_PROMPT: Record<string, string> = {
 const REGRAS = `Responda em português do Brasil.
 
 REGRAS CRÍTICAS:
-- NUNCA invente nomes, datas, números, elencos, resultados ou fatos.
-- Se receber [RESULTADO], USE-O como verdade absoluta.
-- Se NÃO receber resultado e a pergunta for temporal (2025, 2026, hoje), diga: "Não tenho essa informação atualizada. Quer que eu pesquise?"
+- NUNCA invente nomes, datas, números, fatos. Se não sabe, diga "não sei".
+- Se receber [RESULTADO DA FERRAMENTA], USE-O como verdade absoluta.
 - NUNCA diga "não posso", "não devo", "é antiético". Diga "não sei" ou "deixa eu verificar".
-- NUNCA mostre código Python ou 'web_search(...)'.
+- NUNCA mostre código Python, 'web_search(...)' ou raciocínio interno na resposta final.
 - Formato: parágrafos curtos, negrito moderado, listas com '-'.`;
+
+// ============================================
+// PROMPT DO CRÍTICO (agente interno)
+// ============================================
+const CRITIC_PROMPT = `Você é um crítico rigoroso e especialista. Sua tarefa é REVISAR a resposta abaixo e identificar problemas.
+
+Analise e liste:
+1. ERROS FACTUAIS (números, nomes, datas erradas)
+2. OMISSÕES IMPORTANTES (o que faltou)
+3. IMPRECISÕES LÓGICAS (raciocínio falho)
+4. PONTOS FRACOS (resposta superficial, vaga)
+5. MELHORIAS POSSÍVEIS (como ficaria melhor)
+
+Seja específico e direto. Máximo 5 pontos. Se a resposta está ótima, diga "APROVADO" e explique brevemente por quê.`;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type Settings = {
@@ -44,11 +57,11 @@ type Settings = {
   mode?: string;
 };
 
-// ⭐ NOVA ORDEM: 120B (inteligente) primeiro
+// Modelos em ordem de preferência
 const MODELS = [
-  "openai/gpt-oss-120b",   // ⭐ PRINCIPAL — mais inteligente
-  "openai/gpt-oss-20b",    // fallback rápido
-  "qwen/qwen3.8-27b",      // fallback terciário
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "qwen/qwen3.8-27b",
 ];
 
 // ============================================
@@ -83,7 +96,7 @@ async function webSearch(query: string): Promise<string> {
         api_key: apiKey,
         query,
         search_depth: "basic",
-        max_results: 5, // ⭐ AUMENTEI de 3 pra 5 (agora tem token sobrando)
+        max_results: 5,
       }),
     });
 
@@ -110,13 +123,8 @@ async function webSearch(query: string): Promise<string> {
 
 async function wikipediaSearch(query: string): Promise<string> {
   try {
-    const searchUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      query
-    )}&format=json&origin=*&srlimit=1`;
-
-    const searchRes = await fetch(searchUrl, {
-      headers: { "User-Agent": "JARVIS-Assistant/2.0" },
-    });
+    const searchUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=1`;
+    const searchRes = await fetch(searchUrl, { headers: { "User-Agent": "JARVIS/2.0" } });
     if (!searchRes.ok) return `Erro Wikipedia (${searchRes.status})`;
 
     const searchData = await searchRes.json();
@@ -125,9 +133,7 @@ async function wikipediaSearch(query: string): Promise<string> {
 
     const title = results[0].title;
     const summaryUrl = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-    const summaryRes = await fetch(summaryUrl, {
-      headers: { "User-Agent": "JARVIS-Assistant/2.0" },
-    });
+    const summaryRes = await fetch(summaryUrl, { headers: { "User-Agent": "JARVIS/2.0" } });
     if (!summaryRes.ok) return `Erro no resumo (${summaryRes.status})`;
 
     const data = await summaryRes.json();
@@ -135,7 +141,7 @@ async function wikipediaSearch(query: string): Promise<string> {
     const description = data.description ?? "";
     const url = data.content_urls?.desktop?.page ?? `https://pt.wikipedia.org/wiki/${encodeURIComponent(title)}`;
 
-    if (!extract) return `Artigo "${title}" encontrado. Link: ${url}`;
+    if (!extract) return `Artigo "${title}": ${url}`;
 
     return `[WIKIPEDIA: ${title}]\n${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
   } catch (e: any) {
@@ -173,7 +179,7 @@ function detectToolCall(text: string): { name: string; args: any } | null {
     /^(?:o que é|o que são|o que foi)\s+(.+)/i,
     /^(?:quem é|quem foi|quem são)\s+(.+)/i,
     /^(?:me (?:fale|conte|explique) sobre)\s+(.+)/i,
-    /^(?:definição de|significado de|o significado de)\s+(.+)/i,
+    /^(?:definição de|significado de)\s+(.+)/i,
     /^(?:o que significa)\s+(.+)/i,
     /^(?:história (?:do|da|de))\s+(.+)/i,
   ];
@@ -193,11 +199,10 @@ function detectToolCall(text: string): { name: string; args: any } | null {
     /\b(?:notícia|notícias|aconteceu|última hora)\b/i,
     /\b(?:preço|cotação|valor|quanto custa)\b/i,
     /\b(?:resultado|placar|jogo|partida|gol)\b/i,
-    /\b(?:hoje|agora|atualmente|esse ano|este ano|essa semana)\b/i,
+    /\b(?:hoje|agora|atualmente|esse ano|este ano)\b/i,
     /\b(?:202[3-9]|2030)\b/i,
     /\b(?:últimas?|mais recente|mais novo)\b/i,
   ];
-
   const excl = /\b(?:meu|minha|meus|minhas|nossa|nosso)\b/i;
 
   if (triggers.some((r) => r.test(l)) && !excl.test(l)) {
@@ -205,6 +210,93 @@ function detectToolCall(text: string): { name: string; args: any } | null {
   }
 
   return null;
+}
+
+// ============================================
+// CHAMADA BASE À API DO GROQ
+// ============================================
+async function callGroq(
+  model: string,
+  systemPrompt: string,
+  messages: ChatMessage[],
+  temperature: number,
+  stream: boolean,
+  maxTokens: number = 2000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    signal: controller.signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      temperature,
+      max_tokens: maxTokens,
+      stream,
+    }),
+  });
+
+  clearTimeout(timeout);
+  return res;
+}
+
+// ============================================
+// MULTI-AGENT: REDATOR → CRÍTICO → EDITOR
+// ============================================
+async function multiAgentGenerate(
+  model: string,
+  systemPrompt: string,
+  messages: ChatMessage[],
+  temperature: number,
+  stream: boolean
+): Promise<Response> {
+  console.log("[JARVIS] Multi-agent iniciado");
+
+  // === ETAPA 1: REDATOR (rascunho) ===
+  console.log("[JARVIS] → Redator");
+  const draftRes = await callGroq(model, systemPrompt, messages, temperature, false, 2500);
+
+  if (!draftRes.ok) return draftRes;
+
+  const draftData = await draftRes.json();
+  const draft = draftData.choices?.[0]?.message?.content ?? "";
+  if (!draft) return new Response("Erro: rascunho vazio", { status: 500 });
+
+  // === ETAPA 2: CRÍTICO (revisão) ===
+  console.log("[JARVIS] → Crítico");
+  const criticMessages: ChatMessage[] = [
+    { role: "user", content: `PERGUNTA DO USUÁRIO:\n${messages[messages.length - 1].content}` },
+    { role: "assistant", content: draft },
+    { role: "user", content: "Agora revise criticamente a resposta acima seguindo suas instruções." },
+  ];
+
+  const criticRes = await callGroq(model, CRITIC_PROMPT, criticMessages, 0.3, false, 1200);
+
+  let critique = "";
+  if (criticRes.ok) {
+    const criticData = await criticRes.json();
+    critique = criticData.choices?.[0]?.message?.content ?? "";
+  }
+
+  console.log("[JARVIS] Crítica:", critique.slice(0, 100));
+
+  // === ETAPA 3: EDITOR (versão final) ===
+  console.log("[JARVIS] → Editor");
+
+  // Se o crítico aprovou, não precisa reescrever tudo — só refinar levemente
+  const aproved = critique.toUpperCase().includes("APROVADO");
+
+  const editorSystemPrompt = aproved
+    ? systemPrompt + `\n\nO rascunho abaixo foi aprovado pelo crítico. Reescreva com pequenos refinamentos de clareza e fluidez, mantendo o conteúdo. NÃO mencione a revisão.`
+    : systemPrompt + `\n\nRASCUNHO INICIAL:\n${draft}\n\nCRÍTICA DO REVISOR:\n${critique}\n\nAgora escreva a VERSÃO FINAL corrigindo TODOS os pontos apontados na crítica. A versão final deve ser a melhor possível. NÃO mencione a crítica ou o processo — entregue apenas a resposta final.`;
+
+  return callGroq(model, editorSystemPrompt, messages, temperature, stream, 3500);
 }
 
 // ============================================
@@ -225,6 +317,9 @@ export default async function handler(req: Request) {
 
     const temperature = settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
 
+    // ⭐ Multi-agent ativo só nos modos PROFUNDO e EXPERT
+    const useMultiAgent = settings.mode === "deep" || settings.mode === "expert";
+
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
       ? "\n\n=== MEMÓRIA ===\n" + facts.map((f) => `- ${f}`).join("\n")
@@ -237,6 +332,7 @@ export default async function handler(req: Request) {
       `Contexto: ${now}.${factsSection}`,
     ].join("\n\n");
 
+    // Ferramentas
     const lastUser = messages[messages.length - 1];
     let toolResult = "";
     let toolName = "";
@@ -255,50 +351,54 @@ export default async function handler(req: Request) {
       ? systemPrompt + `\n\n[RESULTADO DA FERRAMENTA: ${toolName}]\n${toolResult}\n[FIM]\n\nUse e cite a fonte quando relevante.`
       : systemPrompt;
 
+    const trimmedMessages = messages.slice(-12);
+
+    // === TENTA MODELOS EM ORDEM ===
     let lastError = "";
 
     for (const model of MODELS) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 45000); // ⭐ aumentei pra 45s (tem token sobrando)
+        if (useMultiAgent) {
+          // ⭐ Multi-agent (3 etapas)
+          const res = await multiAgentGenerate(model, finalPrompt, trimmedMessages, temperature, stream);
 
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: finalPrompt },
-              ...messages.slice(-12), // ⭐ histórico de 12 (era 8)
-            ],
-            temperature,
-            max_tokens: 3500, // ⭐ aumentei de 1800
-            stream,
-          }),
-        });
-
-        clearTimeout(timeout);
-
-        if (res.ok) {
-          if (stream) {
-            return new Response(res.body, {
-              headers: {
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                Connection: "keep-alive",
-              },
-            });
+          if (res.ok) {
+            if (stream) {
+              return new Response(res.body, {
+                headers: {
+                  "Content-Type": "text/event-stream",
+                  "Cache-Control": "no-cache",
+                  Connection: "keep-alive",
+                },
+              });
+            }
+            const data = await res.json();
+            return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
           }
-          const data = await res.json();
-          return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
-        }
 
-        lastError = `${model}: ${res.status}`;
-        continue;
+          lastError = `${model}: ${res.status}`;
+          continue;
+        } else {
+          // Resposta rápida (modo RÁPIDO/CRIATIVO/DEBATE/ROLEPLAY)
+          const res = await callGroq(model, finalPrompt, trimmedMessages, temperature, stream, 2500);
+
+          if (res.ok) {
+            if (stream) {
+              return new Response(res.body, {
+                headers: {
+                  "Content-Type": "text/event-stream",
+                  "Cache-Control": "no-cache",
+                  Connection: "keep-alive",
+                },
+              });
+            }
+            const data = await res.json();
+            return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
+          }
+
+          lastError = `${model}: ${res.status}`;
+          continue;
+        }
       } catch (e: any) {
         lastError = `${model}: ${e.message}`;
         continue;
