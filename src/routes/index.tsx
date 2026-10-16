@@ -518,7 +518,7 @@ export function HomePage() {
 
                 {/* ORBE */}
                 <motion.img
-                  src="/jarvis-core.png"
+                  src="/JARVIS.webp"
                   alt="JARVIS Core"
                   className="w-72 h-72 md:w-80 md:h-80 object-contain relative z-10"
                   initial={{ opacity: 0, scale: 0.85 }}
