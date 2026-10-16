@@ -10,43 +10,22 @@ const PERSONAS: Record<string, string> = {
   sextafeira: "Você é a SEXTA-FEIRA — assistente brasileira, informal e bem-humorada. Chame o usuário de 'parceiro'.",
 };
 
-// ============================================
-// MODOS
-// ============================================
 const MODES_PROMPT: Record<string, string> = {
   fast: "MODO RÁPIDO: seja extremamente conciso. Máximo 3 parágrafos curtos.",
-  deep: "MODO PROFUNDO: seja detalhado, preciso e raciocine passo a passo.",
+  deep: "MODO PROFUNDO: raciocine passo a passo antes de responder.",
   creative: "MODO CRIATIVO: use metáforas vívidas e imaginação fértil.",
-  expert: "MODO EXPERT: seja técnico, preciso e detalhado. Terminologia correta.",
-  debate: "MODO DEBATE: apresente argumentos dos DOIS lados. No final, dê sua síntese.",
+  expert: "MODO EXPERT: seja técnico, preciso e detalhado.",
+  debate: "MODO DEBATE: apresente argumentos dos DOIS lados.",
   roleplay: "MODO ROLEPLAY: assuma completamente qualquer personagem pedido.",
 };
 
-// ============================================
-// REGRAS
-// ============================================
 const REGRAS = `Responda em português do Brasil.
 
 REGRAS CRÍTICAS:
-- NUNCA invente nomes, datas, números, fatos. Se não sabe, diga "não sei".
-- Se receber [RESULTADO DA FERRAMENTA], USE-O como verdade absoluta.
-- NUNCA diga "não posso", "não devo", "é antiético". Diga "não sei" ou "deixa eu verificar".
-- NUNCA mostre código Python, 'web_search(...)' ou raciocínio interno na resposta final.
+- Use as ferramentas SEMPRE que precisar de dados atuais (clima, notícias, cotações, fatos recentes, definições).
+- NUNCA invente nomes, datas, números, fatos. Se não sabe, use uma ferramenta ou diga "não sei".
+- NUNCA diga "não posso", "não devo", "é antiético".
 - Formato: parágrafos curtos, negrito moderado, listas com '-'.`;
-
-// ============================================
-// PROMPT DO CRÍTICO (agente interno)
-// ============================================
-const CRITIC_PROMPT = `Você é um crítico rigoroso e especialista. Sua tarefa é REVISAR a resposta abaixo e identificar problemas.
-
-Analise e liste:
-1. ERROS FACTUAIS (números, nomes, datas erradas)
-2. OMISSÕES IMPORTANTES (o que faltou)
-3. IMPRECISÕES LÓGICAS (raciocínio falho)
-4. PONTOS FRACOS (resposta superficial, vaga)
-5. MELHORIAS POSSÍVEIS (como ficaria melhor)
-
-Seja específico e direto. Máximo 5 pontos. Se a resposta está ótima, diga "APROVADO" e explique brevemente por quê.`;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type Settings = {
@@ -57,15 +36,78 @@ type Settings = {
   mode?: string;
 };
 
-// Modelos em ordem de preferência
-const MODELS = [
-  "openai/gpt-oss-120b",
-  "openai/gpt-oss-20b",
-  "qwen/qwen3.8-27b",
+const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+
+// ============================================
+// DEFINIÇÃO DAS FERRAMENTAS (JSON Schema)
+// ============================================
+const TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "get_weather",
+      description: "Retorna o clima atual de uma cidade. Use sempre que o usuário perguntar sobre tempo, clima ou temperatura.",
+      parameters: {
+        type: "object",
+        properties: {
+          city: {
+            type: "string",
+            description: "Nome da cidade (ex: 'São Paulo', 'Rio de Janeiro', 'Londres')",
+          },
+        },
+        required: ["city"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "wikipedia_search",
+      description: "Busca informações enciclopédicas na Wikipedia em português. Use para definições, biografias, conceitos, história, ciência, 'o que é X', 'quem foi Y'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Termo ou pergunta para buscar na Wikipedia",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Pesquisa em tempo real na internet via Tavily. Use para notícias recentes, resultados esportivos, cotações, eventos atuais, dados de 2024+.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Termo de busca (seja específico)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "current_time",
+      description: "Retorna a data e hora atual do Brasil (horário de Brasília). Use sempre que o usuário perguntar 'que horas são', 'que dia é hoje', etc.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
 ];
 
 // ============================================
-// FERRAMENTAS
+// IMPLEMENTAÇÃO DAS FERRAMENTAS
 // ============================================
 async function getWeather(city: string): Promise<string> {
   try {
@@ -74,50 +116,9 @@ async function getWeather(city: string): Promise<string> {
     const data = await res.json();
     const c = data.current_condition?.[0];
     if (!c) throw new Error("no data");
-    return `Clima em ${city}: ${c.weatherDesc?.[0]?.value}, ${c.temp_C}°C, umidade ${c.humidity}%, vento ${c.windspeedKmph}km/h`;
+    return `Clima em ${city}: ${c.weatherDesc?.[0]?.value}, ${c.temp_C}°C, sensação ${c.FeelsLikeC}°C, umidade ${c.humidity}%, vento ${c.windspeedKmph}km/h`;
   } catch {
-    return `Erro ao consultar clima de ${city}`;
-  }
-}
-
-async function webSearch(query: string): Promise<string> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) return "Pesquisa não configurada.";
-
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 6000);
-
-    const res = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: "basic",
-        max_results: 5,
-      }),
-    });
-
-    clearTimeout(t);
-    if (!res.ok) return `Erro (${res.status})`;
-
-    const data = await res.json();
-    const r = data.results ?? [];
-    if (!r.length) return "Nenhum resultado.";
-
-    return r
-      .slice(0, 5)
-      .map((x: any, i: number) => {
-        const title = x.title ?? "Sem título";
-        const content = (x.content ?? "").slice(0, 300);
-        const url = x.url ?? "";
-        return `[${i + 1}] ${title}\n    ${content}\n    Fonte: ${url}`;
-      })
-      .join("\n\n");
-  } catch (e: any) {
-    return `Erro: ${e.message}`;
+    return `Não consegui obter o clima de ${city}.`;
   }
 }
 
@@ -143,88 +144,107 @@ async function wikipediaSearch(query: string): Promise<string> {
 
     if (!extract) return `Artigo "${title}": ${url}`;
 
-    return `[WIKIPEDIA: ${title}]\n${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
+    return `${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
   } catch (e: any) {
     return `Erro Wikipedia: ${e.message}`;
   }
 }
 
+async function webSearch(query: string): Promise<string> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return "Pesquisa web não configurada.";
+
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: "basic",
+        max_results: 4,
+      }),
+    });
+
+    clearTimeout(t);
+    if (!res.ok) return `Erro (${res.status})`;
+
+    const data = await res.json();
+    const r = data.results ?? [];
+    if (!r.length) return "Nenhum resultado.";
+
+    return r
+      .slice(0, 4)
+      .map((x: any, i: number) => {
+        const title = x.title ?? "Sem título";
+        const content = (x.content ?? "").slice(0, 250);
+        const url = x.url ?? "";
+        return `[${i + 1}] ${title}\n    ${content}\n    ${url}`;
+      })
+      .join("\n\n");
+  } catch (e: any) {
+    return `Erro: ${e.message}`;
+  }
+}
+
 function currentTime(): string {
-  return `Agora: ${new Date().toLocaleString("pt-BR", {
+  return new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
     dateStyle: "full",
     timeStyle: "short",
-  })}`;
+  });
 }
 
 // ============================================
-// DETECÇÃO DE FERRAMENTAS
+// EXECUTOR DE FERRAMENTAS
 // ============================================
-function detectToolCall(text: string): { name: string; args: any } | null {
-  const l = text.toLowerCase().trim();
-
-  const w = l.match(/(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i);
-  if (w) return { name: "weather", args: { city: w[1].trim() } };
-
-  if (/(?:que horas|horas são|hora atual|data de hoje|que dia)/i.test(l)) {
-    return { name: "current_time", args: {} };
+async function executeToolCall(name: string, args: any): Promise<string> {
+  console.log(`[JARVIS] executando ${name}:`, args);
+  switch (name) {
+    case "get_weather":
+      return await getWeather(args.city);
+    case "wikipedia_search":
+      return await wikipediaSearch(args.query);
+    case "web_search":
+      return await webSearch(args.query);
+    case "current_time":
+      return `Agora: ${currentTime()} (horário de Brasília)`;
+    default:
+      return `Ferramenta desconhecida: ${name}`;
   }
-
-  if (/(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?(.+)/i.test(l)) {
-    const query = l.replace(/^.*?(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?/i, "");
-    return { name: "web_search", args: { query: query.trim() } };
-  }
-
-  const wikiPatterns = [
-    /^(?:o que é|o que são|o que foi)\s+(.+)/i,
-    /^(?:quem é|quem foi|quem são)\s+(.+)/i,
-    /^(?:me (?:fale|conte|explique) sobre)\s+(.+)/i,
-    /^(?:definição de|significado de)\s+(.+)/i,
-    /^(?:o que significa)\s+(.+)/i,
-    /^(?:história (?:do|da|de))\s+(.+)/i,
-  ];
-
-  for (const pattern of wikiPatterns) {
-    const m = l.match(pattern);
-    if (m) {
-      const query = m[1].replace(/[?.!]+$/g, "").replace(/\b(?:mesmo|mesma|afinal)\b/gi, "").trim();
-      if (query.length > 1 && query.length < 100) {
-        return { name: "wikipedia", args: { query } };
-      }
-    }
-  }
-
-  const triggers = [
-    /\b(?:elenco|escalação|jogadores|campeonato|classificação)\b/i,
-    /\b(?:notícia|notícias|aconteceu|última hora)\b/i,
-    /\b(?:preço|cotação|valor|quanto custa)\b/i,
-    /\b(?:resultado|placar|jogo|partida|gol)\b/i,
-    /\b(?:hoje|agora|atualmente|esse ano|este ano)\b/i,
-    /\b(?:202[3-9]|2030)\b/i,
-    /\b(?:últimas?|mais recente|mais novo)\b/i,
-  ];
-  const excl = /\b(?:meu|minha|meus|minhas|nossa|nosso)\b/i;
-
-  if (triggers.some((r) => r.test(l)) && !excl.test(l)) {
-    return { name: "web_search", args: { query: text.trim() } };
-  }
-
-  return null;
 }
 
 // ============================================
-// CHAMADA BASE À API DO GROQ
+// CHAMADA BASE AO GROQ
 // ============================================
 async function callGroq(
   model: string,
   systemPrompt: string,
-  messages: ChatMessage[],
+  messages: any[],
   temperature: number,
   stream: boolean,
-  maxTokens: number = 2000
+  maxTokens: number = 2500,
+  useTools: boolean = true
 ): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60000);
+
+  const body: any = {
+    model,
+    messages: [{ role: "system", content: systemPrompt }, ...messages],
+    temperature,
+    max_tokens: maxTokens,
+    stream,
+  };
+
+  if (useTools) {
+    body.tools = TOOLS;
+    body.tool_choice = "auto";
+  }
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -233,13 +253,7 @@ async function callGroq(
       "Content-Type": "application/json",
       Authorization: "Bearer " + process.env.LOVABLE_API_KEY,
     },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "system", content: systemPrompt }, ...messages],
-      temperature,
-      max_tokens: maxTokens,
-      stream,
-    }),
+    body: JSON.stringify(body),
   });
 
   clearTimeout(timeout);
@@ -247,60 +261,7 @@ async function callGroq(
 }
 
 // ============================================
-// MULTI-AGENT: REDATOR → CRÍTICO → EDITOR
-// ============================================
-async function multiAgentGenerate(
-  model: string,
-  systemPrompt: string,
-  messages: ChatMessage[],
-  temperature: number,
-  stream: boolean
-): Promise<Response> {
-  console.log("[JARVIS] Multi-agent iniciado");
-
-  // === ETAPA 1: REDATOR (rascunho) ===
-  console.log("[JARVIS] → Redator");
-  const draftRes = await callGroq(model, systemPrompt, messages, temperature, false, 2500);
-
-  if (!draftRes.ok) return draftRes;
-
-  const draftData = await draftRes.json();
-  const draft = draftData.choices?.[0]?.message?.content ?? "";
-  if (!draft) return new Response("Erro: rascunho vazio", { status: 500 });
-
-  // === ETAPA 2: CRÍTICO (revisão) ===
-  console.log("[JARVIS] → Crítico");
-  const criticMessages: ChatMessage[] = [
-    { role: "user", content: `PERGUNTA DO USUÁRIO:\n${messages[messages.length - 1].content}` },
-    { role: "assistant", content: draft },
-    { role: "user", content: "Agora revise criticamente a resposta acima seguindo suas instruções." },
-  ];
-
-  const criticRes = await callGroq(model, CRITIC_PROMPT, criticMessages, 0.3, false, 1200);
-
-  let critique = "";
-  if (criticRes.ok) {
-    const criticData = await criticRes.json();
-    critique = criticData.choices?.[0]?.message?.content ?? "";
-  }
-
-  console.log("[JARVIS] Crítica:", critique.slice(0, 100));
-
-  // === ETAPA 3: EDITOR (versão final) ===
-  console.log("[JARVIS] → Editor");
-
-  // Se o crítico aprovou, não precisa reescrever tudo — só refinar levemente
-  const aproved = critique.toUpperCase().includes("APROVADO");
-
-  const editorSystemPrompt = aproved
-    ? systemPrompt + `\n\nO rascunho abaixo foi aprovado pelo crítico. Reescreva com pequenos refinamentos de clareza e fluidez, mantendo o conteúdo. NÃO mencione a revisão.`
-    : systemPrompt + `\n\nRASCUNHO INICIAL:\n${draft}\n\nCRÍTICA DO REVISOR:\n${critique}\n\nAgora escreva a VERSÃO FINAL corrigindo TODOS os pontos apontados na crítica. A versão final deve ser a melhor possível. NÃO mencione a crítica ou o processo — entregue apenas a resposta final.`;
-
-  return callGroq(model, editorSystemPrompt, messages, temperature, stream, 3500);
-}
-
-// ============================================
-// HANDLER PRINCIPAL
+// HANDLER PRINCIPAL COM FUNCTION CALLING
 // ============================================
 export default async function handler(req: Request) {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -314,15 +275,11 @@ export default async function handler(req: Request) {
 
     const personaPrompt = PERSONAS[settings.persona ?? "jarvis"] ?? PERSONAS.jarvis;
     const modePrompt = MODES_PROMPT[settings.mode ?? "fast"] ?? MODES_PROMPT.fast;
-
     const temperature = settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
-
-    // ⭐ Multi-agent ativo só nos modos PROFUNDO e EXPERT
-    const useMultiAgent = settings.mode === "deep" || settings.mode === "expert";
 
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
-      ? "\n\n=== MEMÓRIA ===\n" + facts.map((f) => `- ${f}`).join("\n")
+      ? "\n\n=== MEMÓRIA DO USUÁRIO ===\n" + facts.map((f) => `- ${f}`).join("\n")
       : "";
 
     const systemPrompt = [
@@ -332,73 +289,102 @@ export default async function handler(req: Request) {
       `Contexto: ${now}.${factsSection}`,
     ].join("\n\n");
 
-    // Ferramentas
-    const lastUser = messages[messages.length - 1];
-    let toolResult = "";
-    let toolName = "";
-    if (lastUser?.role === "user") {
-      const tool = detectToolCall(lastUser.content);
-      if (tool) {
-        toolName = tool.name;
-        if (tool.name === "weather") toolResult = await getWeather(tool.args.city);
-        else if (tool.name === "web_search") toolResult = await webSearch(tool.args.query);
-        else if (tool.name === "wikipedia") toolResult = await wikipediaSearch(tool.args.query);
-        else if (tool.name === "current_time") toolResult = currentTime();
-      }
-    }
-
-    const finalPrompt = toolResult
-      ? systemPrompt + `\n\n[RESULTADO DA FERRAMENTA: ${toolName}]\n${toolResult}\n[FIM]\n\nUse e cite a fonte quando relevante.`
-      : systemPrompt;
-
     const trimmedMessages = messages.slice(-12);
-
-    // === TENTA MODELOS EM ORDEM ===
     let lastError = "";
 
     for (const model of MODELS) {
       try {
-        if (useMultiAgent) {
-          // ⭐ Multi-agent (3 etapas)
-          const res = await multiAgentGenerate(model, finalPrompt, trimmedMessages, temperature, stream);
+        // ============================================
+        // PASSO 1: PRIMEIRA CHAMADA COM TOOLS
+        // ============================================
+        console.log(`[JARVIS] chamada inicial com ${model}`);
 
-          if (res.ok) {
-            if (stream) {
-              return new Response(res.body, {
-                headers: {
-                  "Content-Type": "text/event-stream",
-                  "Cache-Control": "no-cache",
-                  Connection: "keep-alive",
-                },
-              });
-            }
-            const data = await res.json();
-            return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
-          }
+        const firstRes = await callGroq(
+          model,
+          systemPrompt,
+          trimmedMessages,
+          temperature,
+          false, // sempre não-stream na primeira
+          2000,
+          true // com tools
+        );
 
-          lastError = `${model}: ${res.status}`;
-          continue;
-        } else {
-          // Resposta rápida (modo RÁPIDO/CRIATIVO/DEBATE/ROLEPLAY)
-          const res = await callGroq(model, finalPrompt, trimmedMessages, temperature, stream, 2500);
-
-          if (res.ok) {
-            if (stream) {
-              return new Response(res.body, {
-                headers: {
-                  "Content-Type": "text/event-stream",
-                  "Cache-Control": "no-cache",
-                  Connection: "keep-alive",
-                },
-              });
-            }
-            const data = await res.json();
-            return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
-          }
-
-          lastError = `${model}: ${res.status}`;
+        if (!firstRes.ok) {
+          lastError = `${model}: ${firstRes.status}`;
           continue;
         }
+
+        const firstData = await firstRes.json();
+        const choice = firstData.choices?.[0];
+        const assistantMessage = choice?.message;
+
+        // ============================================
+        // PASSO 2: SE O MODELO PEDIU FERRAMENTA(S)
+        // ============================================
+        if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
+          console.log(`[JARVIS] ${assistantMessage.tool_calls.length} tool_call(s) detectado(s)`);
+
+          // Executa todas as ferramentas em paralelo
+          const toolResults = await Promise.all(
+            assistantMessage.tool_calls.map(async (tc: any) => {
+              const fnName = tc.function.name;
+              const fnArgs = JSON.parse(tc.function.arguments || "{}");
+              const result = await executeToolCall(fnName, fnArgs);
+              return {
+                tool_call_id: tc.id,
+                role: "tool",
+                content: result,
+              };
+            })
+          );
+
+          // Monta a conversa com o pedido do modelo + resultados
+          const conversationWithTools = [
+            ...trimmedMessages,
+            assistantMessage, // a mensagem do assistant com tool_calls
+            ...toolResults,   // os resultados das ferramentas
+          ];
+
+          // ============================================
+          // PASSO 3: SEGUNDA CHAMADA (com resultados) - stream
+          // ============================================
+          console.log(`[JARVIS] segunda chamada (com resultados)`);
+
+          const secondRes = await callGroq(
+            model,
+            systemPrompt,
+            conversationWithTools,
+            temperature,
+            stream,
+            3000,
+            false // sem tools na segunda (já resolveu)
+          );
+
+          if (secondRes.ok) {
+            if (stream) {
+              return new Response(secondRes.body, {
+                headers: {
+                  "Content-Type": "text/event-stream",
+                  "Cache-Control": "no-cache",
+                  Connection: "keep-alive",
+                },
+              });
+            }
+            const secondData = await secondRes.json();
+            const content = secondData.choices?.[0]?.message?.content ?? "Sem resposta.";
+            return Response.json({ content });
+          }
+
+          lastError = `${model} (segunda chamada): ${secondRes.status}`;
+          continue;
+        }
+
+        // ============================================
+        // SEM TOOL CALLS: RESPOSTA DIRETA
+        // ============================================
+        console.log(`[JARVIS] resposta direta (sem tools)`);
+        const content = assistantMessage?.content ?? "Sem resposta.";
+        return Response.json({ content });
       } catch (e: any) {
         lastError = `${model}: ${e.message}`;
         continue;
