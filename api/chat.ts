@@ -44,10 +44,15 @@ type Settings = {
   mode?: string;
 };
 
-const MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
+// ⭐ NOVA ORDEM: 120B (inteligente) primeiro
+const MODELS = [
+  "openai/gpt-oss-120b",   // ⭐ PRINCIPAL — mais inteligente
+  "openai/gpt-oss-20b",    // fallback rápido
+  "qwen/qwen3.8-27b",      // fallback terciário
+];
 
 // ============================================
-// FERRAMENTA: CLIMA
+// FERRAMENTAS
 // ============================================
 async function getWeather(city: string): Promise<string> {
   try {
@@ -62,9 +67,6 @@ async function getWeather(city: string): Promise<string> {
   }
 }
 
-// ============================================
-// FERRAMENTA: PESQUISA WEB (Tavily)
-// ============================================
 async function webSearch(query: string): Promise<string> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) return "Pesquisa não configurada.";
@@ -81,7 +83,7 @@ async function webSearch(query: string): Promise<string> {
         api_key: apiKey,
         query,
         search_depth: "basic",
-        max_results: 3,
+        max_results: 5, // ⭐ AUMENTEI de 3 pra 5 (agora tem token sobrando)
       }),
     });
 
@@ -93,10 +95,10 @@ async function webSearch(query: string): Promise<string> {
     if (!r.length) return "Nenhum resultado.";
 
     return r
-      .slice(0, 3)
+      .slice(0, 5)
       .map((x: any, i: number) => {
         const title = x.title ?? "Sem título";
-        const content = (x.content ?? "").slice(0, 250);
+        const content = (x.content ?? "").slice(0, 300);
         const url = x.url ?? "";
         return `[${i + 1}] ${title}\n    ${content}\n    Fonte: ${url}`;
       })
@@ -106,12 +108,8 @@ async function webSearch(query: string): Promise<string> {
   }
 }
 
-// ============================================
-// ⭐ NOVA FERRAMENTA: WIKIPEDIA
-// ============================================
 async function wikipediaSearch(query: string): Promise<string> {
   try {
-    // 1. Busca o título do artigo mais relevante
     const searchUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
       query
     )}&format=json&origin=*&srlimit=1`;
@@ -119,36 +117,25 @@ async function wikipediaSearch(query: string): Promise<string> {
     const searchRes = await fetch(searchUrl, {
       headers: { "User-Agent": "JARVIS-Assistant/2.0" },
     });
-    if (!searchRes.ok) return `Erro na busca Wikipedia (${searchRes.status})`;
+    if (!searchRes.ok) return `Erro Wikipedia (${searchRes.status})`;
 
     const searchData = await searchRes.json();
     const results = searchData.query?.search ?? [];
-
-    if (results.length === 0) {
-      return `Nenhum artigo da Wikipedia encontrado para "${query}".`;
-    }
+    if (results.length === 0) return `Nenhum artigo para "${query}".`;
 
     const title = results[0].title;
-
-    // 2. Pega o resumo do artigo
-    const summaryUrl = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
-      title
-    )}`;
-
+    const summaryUrl = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
     const summaryRes = await fetch(summaryUrl, {
       headers: { "User-Agent": "JARVIS-Assistant/2.0" },
     });
-    if (!summaryRes.ok) return `Erro ao carregar resumo (${summaryRes.status})`;
+    if (!summaryRes.ok) return `Erro no resumo (${summaryRes.status})`;
 
     const data = await summaryRes.json();
-
     const extract = data.extract ?? "";
     const description = data.description ?? "";
     const url = data.content_urls?.desktop?.page ?? `https://pt.wikipedia.org/wiki/${encodeURIComponent(title)}`;
 
-    if (!extract) {
-      return `Encontrei o artigo "${title}" mas não consegui extrair o resumo. Link: ${url}`;
-    }
+    if (!extract) return `Artigo "${title}" encontrado. Link: ${url}`;
 
     return `[WIKIPEDIA: ${title}]\n${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
   } catch (e: any) {
@@ -156,9 +143,6 @@ async function wikipediaSearch(query: string): Promise<string> {
   }
 }
 
-// ============================================
-// FERRAMENTA: HORA
-// ============================================
 function currentTime(): string {
   return `Agora: ${new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
@@ -173,31 +157,18 @@ function currentTime(): string {
 function detectToolCall(text: string): { name: string; args: any } | null {
   const l = text.toLowerCase().trim();
 
-  // === CLIMA ===
-  const w = l.match(
-    /(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i
-  );
+  const w = l.match(/(?:clima|tempo|temperatura)\s+(?:em|de|no|na|para)\s+([a-záàâãéèêíïóôõöúçñ\s]+)/i);
   if (w) return { name: "weather", args: { city: w[1].trim() } };
 
-  // === HORA ===
   if (/(?:que horas|horas são|hora atual|data de hoje|que dia)/i.test(l)) {
     return { name: "current_time", args: {} };
   }
 
-  // === PESQUISA EXPLÍCITA (Tavily) ===
-  if (
-    /(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?(.+)/i.test(
-      l
-    )
-  ) {
-    const query = l.replace(
-      /^.*?(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?/i,
-      ""
-    );
+  if (/(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?(.+)/i.test(l)) {
+    const query = l.replace(/^.*?(?:pesquise|procure|busque|pesquisa|pesquisar)\s+(?:na internet|no google)\s+(?:sobre\s+)?/i, "");
     return { name: "web_search", args: { query: query.trim() } };
   }
 
-  // === ⭐ WIKIPEDIA (perguntas factuais/definição) ===
   const wikiPatterns = [
     /^(?:o que é|o que são|o que foi)\s+(.+)/i,
     /^(?:quem é|quem foi|quem são)\s+(.+)/i,
@@ -210,17 +181,13 @@ function detectToolCall(text: string): { name: string; args: any } | null {
   for (const pattern of wikiPatterns) {
     const m = l.match(pattern);
     if (m) {
-      const query = m[1]
-        .replace(/[?.!]+$/g, "")
-        .replace(/\b(?:mesmo|mesma|afinal)\b/gi, "")
-        .trim();
+      const query = m[1].replace(/[?.!]+$/g, "").replace(/\b(?:mesmo|mesma|afinal)\b/gi, "").trim();
       if (query.length > 1 && query.length < 100) {
         return { name: "wikipedia", args: { query } };
       }
     }
   }
 
-  // === PESQUISA AUTOMÁTICA (Tavily - temporal/factual) ===
   const triggers = [
     /\b(?:elenco|escalação|jogadores|campeonato|classificação)\b/i,
     /\b(?:notícia|notícias|aconteceu|última hora)\b/i,
@@ -256,8 +223,7 @@ export default async function handler(req: Request) {
     const personaPrompt = PERSONAS[settings.persona ?? "jarvis"] ?? PERSONAS.jarvis;
     const modePrompt = MODES_PROMPT[settings.mode ?? "fast"] ?? MODES_PROMPT.fast;
 
-    const temperature =
-      settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
+    const temperature = settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
 
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
@@ -271,7 +237,6 @@ export default async function handler(req: Request) {
       `Contexto: ${now}.${factsSection}`,
     ].join("\n\n");
 
-    // === DETECTA E EXECUTA FERRAMENTA ===
     const lastUser = messages[messages.length - 1];
     let toolResult = "";
     let toolName = "";
@@ -287,17 +252,15 @@ export default async function handler(req: Request) {
     }
 
     const finalPrompt = toolResult
-      ? systemPrompt +
-        `\n\n[RESULTADO DA FERRAMENTA: ${toolName}]\n${toolResult}\n[FIM DO RESULTADO]\n\nUse essas informações e cite a fonte quando relevante.`
+      ? systemPrompt + `\n\n[RESULTADO DA FERRAMENTA: ${toolName}]\n${toolResult}\n[FIM]\n\nUse e cite a fonte quando relevante.`
       : systemPrompt;
 
-    // === FALLBACK EM CASCATA ===
     let lastError = "";
 
     for (const model of MODELS) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        const timeout = setTimeout(() => controller.abort(), 45000); // ⭐ aumentei pra 45s (tem token sobrando)
 
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -310,10 +273,10 @@ export default async function handler(req: Request) {
             model,
             messages: [
               { role: "system", content: finalPrompt },
-              ...messages.slice(-8),
+              ...messages.slice(-12), // ⭐ histórico de 12 (era 8)
             ],
             temperature,
-            max_tokens: 1800,
+            max_tokens: 3500, // ⭐ aumentei de 1800
             stream,
           }),
         });
@@ -331,9 +294,7 @@ export default async function handler(req: Request) {
             });
           }
           const data = await res.json();
-          return Response.json({
-            content: data.choices?.[0]?.message?.content ?? "Sem resposta.",
-          });
+          return Response.json({ content: data.choices?.[0]?.message?.content ?? "Sem resposta." });
         }
 
         lastError = `${model}: ${res.status}`;
