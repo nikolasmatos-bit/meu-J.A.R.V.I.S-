@@ -10,16 +10,36 @@ export function Bootstrap({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setLoading(false);
+    let resolved = false;
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        setUser(session?.user ?? null);
+        if (!resolved) {
+          resolved = true;
+          setLoading(false);
+        }
+      }
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+      }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-    });
+    // Fallback: se em 1.5s nada resolveu (hash demorou, etc.)
+    const t = setTimeout(() => {
+      if (!resolved) {
+        supabase.auth.getUser().then(({ data }) => {
+          setUser(data.user);
+          setLoading(false);
+          resolved = true;
+        });
+      }
+    }, 1500);
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      sub.subscription.unsubscribe();
+      clearTimeout(t);
+    };
   }, []);
 
   if (loading) {

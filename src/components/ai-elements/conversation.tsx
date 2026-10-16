@@ -6,14 +6,19 @@ type Msg = { id: string; role: "user" | "assistant"; content: string };
 export function Conversation({
   messages,
   streamingText,
+  personaName = "J.A.R.V.I.S.",
 }: {
   messages: Msg[];
   streamingText?: string;
+  personaName?: string;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({
+      behavior: streamingText ? "auto" : "smooth",
+      block: "end",
+    });
   }, [messages, streamingText]);
 
   if (messages.length === 0 && !streamingText) {
@@ -55,7 +60,7 @@ export function Conversation({
           <div className="min-w-0">
             <div className="flex items-center gap-3 mb-2">
               <div className="font-mono text-[10px] tracking-[0.3em]" style={{ color: "var(--theme-primary)" }}>
-                J.A.R.V.I.S.
+                {personaName}
               </div>
               <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, var(--theme-glow), transparent)" }} />
               <div className="font-mono text-[8px] tracking-widest animate-pulse" style={{ color: "var(--theme-primary)" }}>

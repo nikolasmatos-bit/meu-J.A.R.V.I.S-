@@ -25,10 +25,11 @@ export function PromptInput({
     if (!value.trim() || disabled) return;
     onSend(value);
     setValue("");
+    inputRef.current?.focus();
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") { submit(); return; }
+    if (e.key === "Enter" && !e.shiftKey) { submit(); return; }
     if (e.key === "ArrowUp" && onHistory && !value) {
       e.preventDefault();
       const prev = onHistory("up");
@@ -43,7 +44,6 @@ export function PromptInput({
 
   return (
     <div className="font-mono">
-      {/* Label da linha */}
       <div className="flex items-center gap-3 mb-1.5">
         <span className="text-[9px] tracking-[0.3em]" style={{ color: `${primaryColor}88` }}>
           INPUT
@@ -54,7 +54,6 @@ export function PromptInput({
         </span>
       </div>
 
-      {/* Prompt terminal */}
       <div
         className="flex items-stretch border transition-all duration-200"
         style={{
@@ -63,7 +62,6 @@ export function PromptInput({
           boxShadow: focused ? `0 0 20px ${primaryColor}33` : "none",
         }}
       >
-        {/* Prompt marker */}
         <div
           className="flex items-center px-3 border-r select-none text-[11px] tracking-widest shrink-0"
           style={{ borderColor: `${primaryColor}33`, color: primaryColor }}
@@ -85,7 +83,6 @@ export function PromptInput({
           autoComplete="off"
         />
 
-        {/* MIC */}
         <button
           onClick={onToggleMic}
           className="px-3 border-l text-[11px] tracking-widest transition-all shrink-0"
@@ -99,7 +96,6 @@ export function PromptInput({
           {listening ? "● ON" : "◉ MIC"}
         </button>
 
-        {/* ENVIAR */}
         <button
           onClick={submit}
           disabled={disabled || !value.trim()}
@@ -114,7 +110,6 @@ export function PromptInput({
         </button>
       </div>
 
-      {/* Hint inferior */}
       <div className="flex justify-between text-[8px] tracking-widest text-slate-700 mt-1.5">
         <span>ENTER · enviar</span>
         <span>↑ · histórico</span>

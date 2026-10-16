@@ -17,9 +17,17 @@ function parseThinking(text: string): { thinking: string; content: string } {
   return { thinking: "", content: text };
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function highlightCode(code: string): string {
-  return code
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  return escapeHtml(code)
     .replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, '<span class="tok-comment">$1</span>')
     .replace(/(&quot;.*?&quot;|".*?"|'.*?')/g, '<span class="tok-string">$1</span>')
     .replace(/\b(function|const|let|var|if|else|for|while|return|import|export|class|async|await|new|this|typeof|try|catch|finally|throw|extends|super|yield|static)\b/g, '<span class="tok-keyword">$1</span>')
@@ -28,15 +36,29 @@ function highlightCode(code: string): string {
 }
 
 function formatContent(text: string): string {
-  return text
-    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, _lang, code) => {
-      return `<div class="code-line"><span class="code-marker">$</span><pre>${highlightCode(code.trim())}</pre></div>`;
-    })
+  // 1. Extrai code blocks ANTES de escapar
+  const codeBlocks: string[] = [];
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, _lang, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(
+      `<div class="code-line"><span class="code-marker">$</span><pre>${highlightCode(code.trim())}</pre></div>`
+    );
+    return `\u0000CODE${idx}\u0000`;
+  });
+
+  // 2. Escapa o resto (proteção XSS)
+  text = escapeHtml(text);
+
+  // 3. Markdown inline
+  text = text
     .replace(/`([^`]+)`/g, '<code class="tok-inline">$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong class="tok-strong">$1</strong>')
     .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
     .replace(/^\- (.+)$/gm, '<div class="tok-list">→ $1</div>')
     .replace(/\n/g, "<br/>");
+
+  // 4. Restaura code blocks
+  return text.replace(/\u0000CODE(\d+)\u0000/g, (_m, i) => codeBlocks[+i]);
 }
 
 export const Message = memo(function Message({ role, content, index = 0 }: Props) {
@@ -77,13 +99,13 @@ export const Message = memo(function Message({ role, content, index = 0 }: Props
 
   return (
     <div
-      className="grid gap-4 py-4 group transition-colors"
+      className="grid gap-4 py-4 group transition-colors message-in"
       style={{
         gridTemplateColumns: "70px 1fr",
         borderBottom: `1px dashed ${accentFade}`,
       }}
     >
-      {/* MARGEM ESQUERDA — número + timestamp + direção */}
+      {/* MARGEM ESQUERDA */}
       <div className="text-right select-none">
         <div className="font-mono text-[10px] tabular-nums" style={{ color: `${accent}cc` }}>
           #{String(index + 1).padStart(3, "0")}
@@ -101,12 +123,8 @@ export const Message = memo(function Message({ role, content, index = 0 }: Props
 
       {/* CONTEÚDO */}
       <div className="min-w-0">
-        {/* Header da linha */}
         <div className="flex items-center gap-3 mb-2">
-          <div
-            className="font-mono text-[10px] tracking-[0.3em]"
-            style={{ color: accent }}
-          >
+          <div className="font-mono text-[10px] tracking-[0.3em]" style={{ color: accent }}>
             {isUser ? "OPERADOR" : "J.A.R.V.I.S."}
           </div>
           <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${accentFade}, transparent)` }} />

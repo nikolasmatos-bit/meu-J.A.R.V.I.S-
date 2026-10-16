@@ -1,8 +1,5 @@
 export const config = { runtime: "edge" };
 
-// ============================================
-// PERSONAS
-// ============================================
 const PERSONAS: Record<string, string> = {
   jarvis: "Você é o J.A.R.V.I.S. — assistente elegante, direto. Cortesia discreta, humor britânico ocasional. Chame o usuário de 'senhor'.",
   friday: "Você é a F.R.I.D.A.Y. — assistente feminina, descontraída e eficiente. Chame o usuário de 'chefe'.",
@@ -19,10 +16,21 @@ const MODES_PROMPT: Record<string, string> = {
   roleplay: "MODO ROLEPLAY: assuma completamente qualquer personagem pedido.",
 };
 
+const TONE_PROMPT: Record<string, string> = {
+  formal: "TOM: formal e cerimonioso. Sem gírias, sem contrações informais.",
+  classic: "TOM: clássico e equilibrado — a voz padrão do JARVIS.",
+  casual: "TOM: descontraído, informal, com gírias leves quando couber.",
+};
+
+const LENGTH_PROMPT: Record<string, string> = {
+  concise: "EXTENSÃO: respostas curtas. 1-2 parágrafos no máximo.",
+  detailed: "EXTENSÃO: respostas detalhadas, com contexto e exemplos.",
+};
+
 const REGRAS = `Responda em português do Brasil.
 
 REGRAS CRÍTICAS:
-- Use as ferramentas SEMPRE que precisar de dados atuais (clima, notícias, cotações, cripto, matemática avançada, fatos recentes, definições, quizzes).
+- Use as ferramentas SEMPRE que precisar de dados atuais.
 - NUNCA invente nomes, datas, números, fatos. Se não sabe, use ferramenta ou diga "não sei".
 - NUNCA diga "não posso", "não devo", "é antiético".
 - Formato: parágrafos curtos, negrito moderado, listas com '-'.`;
@@ -34,24 +42,21 @@ type Settings = {
   volume?: number;
   persona?: string;
   mode?: string;
+  temperature?: number;
 };
 
-const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+// ✅ ALTERAÇÃO: Kimi K2 como modelo principal (1T params, 256K contexto, tool calling superior)
+const MODELS = ["moonshotai/kimi-k2-instruct-0905", "llama-3.3-70b-versatile", "openai/gpt-oss-120b"];
 
-// ============================================
-// FERRAMENTAS (sem filmes)
-// ============================================
 const TOOLS = [
   {
     type: "function",
     function: {
       name: "get_weather",
-      description: "Retorna o clima atual de uma cidade. Use sempre que o usuário perguntar sobre tempo, clima ou temperatura.",
+      description: "Retorna o clima atual de uma cidade.",
       parameters: {
         type: "object",
-        properties: {
-          city: { type: "string", description: "Nome da cidade (ex: 'São Paulo', 'Rio de Janeiro', 'Londres')" },
-        },
+        properties: { city: { type: "string", description: "Nome da cidade" } },
         required: ["city"],
       },
     },
@@ -60,12 +65,10 @@ const TOOLS = [
     type: "function",
     function: {
       name: "wikipedia_search",
-      description: "Busca informações enciclopédicas na Wikipedia. Use para definições, biografias, conceitos, história, ciência, 'o que é X', 'quem foi Y'.",
+      description: "Busca informações na Wikipedia. Use para definições, biografias, 'o que é X', 'quem foi Y'.",
       parameters: {
         type: "object",
-        properties: {
-          query: { type: "string", description: "Termo para buscar na Wikipedia" },
-        },
+        properties: { query: { type: "string", description: "Termo para buscar" } },
         required: ["query"],
       },
     },
@@ -74,12 +77,10 @@ const TOOLS = [
     type: "function",
     function: {
       name: "web_search",
-      description: "Pesquisa em tempo real na internet via Tavily. Use para notícias recentes, resultados esportivos, eventos atuais, dados de 2024+.",
+      description: "Pesquisa em tempo real na internet. Use para notícias, resultados, eventos atuais.",
       parameters: {
         type: "object",
-        properties: {
-          query: { type: "string", description: "Termo de busca (seja específico)" },
-        },
+        properties: { query: { type: "string", description: "Termo de busca" } },
         required: ["query"],
       },
     },
@@ -88,7 +89,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "current_time",
-      description: "Retorna a data e hora atual do Brasil (horário de Brasília). Use para 'que horas são', 'que dia é hoje'.",
+      description: "Retorna data e hora atual do Brasil.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -96,14 +97,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_crypto_price",
-      description: "Retorna o preço atual de criptomoedas (Bitcoin, Ethereum, etc.) e variação nas últimas 24h. Use quando o usuário perguntar sobre cotação, preço ou valor de criptomoedas.",
+      description: "Retorna preço atual de criptomoedas. Use para 'preço do Bitcoin', 'cotação do Ethereum'.",
       parameters: {
         type: "object",
         properties: {
-          coin: {
-            type: "string",
-            description: "Nome ou símbolo da criptomoeda. Exemplos: 'bitcoin', 'ethereum', 'solana', 'btc', 'eth'. Se múltiplas, separe por vírgula.",
-          },
+          coin: { type: "string", description: "Símbolo ou nome (ex: 'bitcoin', 'btc', 'ethereum', 'eth'). Múltiplas separadas por vírgula." },
         },
         required: ["coin"],
       },
@@ -113,12 +111,12 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_news",
-      description: "Busca notícias recentes sobre um tópico. Use quando o usuário pedir 'notícias sobre X', 'últimas notícias', 'o que está acontecendo com X'.",
+      description: "Busca notícias recentes sobre um tópico.",
       parameters: {
         type: "object",
         properties: {
-          topic: { type: "string", description: "Tópico das notícias (ex: 'inteligência artificial', 'economia', 'futebol')" },
-          language: { type: "string", description: "Código do idioma: 'pt' para português, 'en' para inglês. Padrão: 'pt'." },
+          topic: { type: "string", description: "Tópico das notícias" },
+          language: { type: "string", description: "Código do idioma: 'pt' ou 'en'. Padrão: 'pt'." },
         },
         required: ["topic"],
       },
@@ -128,12 +126,10 @@ const TOOLS = [
     type: "function",
     function: {
       name: "wolfram_query",
-      description: "Consulta o Wolfram Alpha para cálculos matemáticos avançados (integrais, derivadas, equações), conversões de unidades, dados científicos, fatos quantitativos. Use quando o usuário pedir cálculo complexo, matemática avançada, ou dados precisos.",
+      description: "Consulta o Wolfram Alpha para cálculos matemáticos avançados, integrais, derivadas, conversões.",
       parameters: {
         type: "object",
-        properties: {
-          query: { type: "string", description: "A pergunta matemática/científica (ex: 'integral of x^2 sin(x)', '5 miles in km', 'population of Japan')" },
-        },
+        properties: { query: { type: "string", description: "Pergunta matemática/científica" } },
         required: ["query"],
       },
     },
@@ -142,21 +138,18 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_trivia",
-      description: "Retorna uma pergunta de trivia/quiz aleatória. Use quando o usuário pedir 'me faça uma pergunta', 'quiz', 'trivia', 'desafio'.",
+      description: "Retorna uma pergunta de trivia/quiz aleatória.",
       parameters: {
         type: "object",
         properties: {
-          category: { type: "string", description: "Categoria: 'general', 'science', 'history', 'geography', 'sports', 'movies'. Padrão: 'general'." },
-          difficulty: { type: "string", description: "Dificuldade: 'easy', 'medium', 'hard'. Padrão: 'medium'." },
+          category: { type: "string", description: "Categoria: 'general', 'science', 'history', 'geography', 'sports'" },
+          difficulty: { type: "string", description: "Dificuldade: 'easy', 'medium', 'hard'" },
         },
       },
     },
   },
 ];
 
-// ============================================
-// IMPLEMENTAÇÕES
-// ============================================
 async function getWeather(city: string): Promise<string> {
   try {
     const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
@@ -175,21 +168,17 @@ async function wikipediaSearch(query: string): Promise<string> {
     const searchUrl = `https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=1`;
     const searchRes = await fetch(searchUrl, { headers: { "User-Agent": "JARVIS/2.0" } });
     if (!searchRes.ok) return `Erro Wikipedia (${searchRes.status})`;
-
     const searchData = await searchRes.json();
     const results = searchData.query?.search ?? [];
     if (results.length === 0) return `Nenhum artigo para "${query}".`;
-
     const title = results[0].title;
     const summaryUrl = `https://pt.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
     const summaryRes = await fetch(summaryUrl, { headers: { "User-Agent": "JARVIS/2.0" } });
     if (!summaryRes.ok) return `Erro no resumo (${summaryRes.status})`;
-
     const data = await summaryRes.json();
     const extract = data.extract ?? "";
     const description = data.description ?? "";
     const url = data.content_urls?.desktop?.page ?? `https://pt.wikipedia.org/wiki/${encodeURIComponent(title)}`;
-
     if (!extract) return `Artigo "${title}": ${url}`;
     return `${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
   } catch (e: any) {
@@ -236,7 +225,6 @@ async function getCryptoPrice(coin: string): Promise<string> {
       const clean = c.trim().toLowerCase();
       return map[clean] || clean;
     }).join(",");
-
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(
@@ -246,7 +234,6 @@ async function getCryptoPrice(coin: string): Promise<string> {
     clearTimeout(t);
     if (!res.ok) return `Erro na consulta (${res.status})`;
     const data = await res.json();
-
     const lines: string[] = [];
     for (const [id, info] of Object.entries(data as any)) {
       const i = info as any;
@@ -265,8 +252,7 @@ async function getCryptoPrice(coin: string): Promise<string> {
 
 async function getNews(topic: string, language: string = "pt"): Promise<string> {
   const apiKey = process.env.NEWSAPI_KEY;
-  if (!apiKey) return "Para consultar notícias, adicione a chave NEWSAPI_KEY na Vercel (newsapi.org).";
-
+  if (!apiKey) return "Para consultar notícias, adicione NEWSAPI_KEY na Vercel.";
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 7000);
@@ -290,8 +276,7 @@ async function getNews(topic: string, language: string = "pt"): Promise<string> 
 
 async function wolframQuery(query: string): Promise<string> {
   const appId = process.env.WOLFRAM_APPID;
-  if (!appId) return "Para cálculos avançados, adicione o WOLFRAM_APPID na Vercel.";
-
+  if (!appId) return "Para cálculos avançados, adicione WOLFRAM_APPID na Vercel.";
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 8000);
@@ -319,22 +304,16 @@ async function getTrivia(category: string = "general", difficulty: string = "med
     const data = await res.json();
     const q = data.results?.[0];
     if (!q) return "Sem pergunta disponível.";
-
     const decode = (s: string) => s.replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&eacute;/g, "é").replace(/&atilde;/g, "ã");
-
     const question = decode(q.question);
     const correct = decode(q.correct_answer);
     const options = [correct, ...q.incorrect_answers.map(decode)].sort(() => Math.random() - 0.5);
-
     return `🎯 TRIVIA\n\n${question}\n\nA) ${options[0]}\nB) ${options[1]}\nC) ${options[2]}\nD) ${options[3]}\n\n(Resposta correta: ${correct})`;
   } catch (e: any) {
     return `Erro: ${e.message}`;
   }
 }
 
-// ============================================
-// EXECUTOR
-// ============================================
 async function executeToolCall(name: string, args: any): Promise<string> {
   console.log(`[JARVIS] executando ${name}:`, args);
   switch (name) {
@@ -350,9 +329,6 @@ async function executeToolCall(name: string, args: any): Promise<string> {
   }
 }
 
-// ============================================
-// CHAMADA BASE AO GROQ
-// ============================================
 async function callGroq(
   model: string,
   systemPrompt: string,
@@ -392,9 +368,6 @@ async function callGroq(
   return res;
 }
 
-// ============================================
-// HANDLER
-// ============================================
 export default async function handler(req: Request) {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
@@ -407,14 +380,27 @@ export default async function handler(req: Request) {
 
     const personaPrompt = PERSONAS[settings.persona ?? "jarvis"] ?? PERSONAS.jarvis;
     const modePrompt = MODES_PROMPT[settings.mode ?? "fast"] ?? MODES_PROMPT.fast;
-    const temperature = settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7;
+    const tonePrompt = TONE_PROMPT[settings.tone ?? "classic"] ?? TONE_PROMPT.classic;
+    const lengthPrompt = LENGTH_PROMPT[settings.length ?? "detailed"] ?? LENGTH_PROMPT.detailed;
+
+    const temperature =
+      settings.temperature ??
+      (settings.mode === "creative" ? 1.1 : settings.mode === "expert" ? 0.4 : 0.7);
 
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
       ? "\n\n=== MEMÓRIA DO USUÁRIO ===\n" + facts.map((f) => `- ${f}`).join("\n")
       : "";
 
-    const systemPrompt = [personaPrompt, modePrompt, REGRAS, `Contexto: ${now}.${factsSection}`].join("\n\n");
+    const systemPrompt = [
+      personaPrompt,
+      modePrompt,
+      tonePrompt,
+      lengthPrompt,
+      REGRAS,
+      `Contexto: ${now}.${factsSection}`,
+    ].join("\n\n");
+
     const trimmedMessages = messages.slice(-12);
     let lastError = "";
 
