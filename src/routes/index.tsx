@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useJarvis } from "../components/jarvis/Bootstrap";
-import { IronManHelmet } from "../components/jarvis/IronManHelmet";
 import { MouseTrail } from "../components/jarvis/MouseTrail";
 import { SFX } from "../lib/sfx";
 import { THEMES, applyTheme, loadPersona, type Persona } from "../lib/theme";
@@ -164,7 +163,6 @@ export function HomePage() {
   const hour = time.getHours();
   const greeting = hour < 12 ? "BOM DIA" : hour < 18 ? "BOA TARDE" : "BOA NOITE";
 
-  // SVG path pra gráfico CPU
   const cpuPath = cpuHistory
     .map((v, i) => `${i === 0 ? "M" : "L"} ${(i / (cpuHistory.length - 1)) * 100} ${30 - (v / 100) * 30}`)
     .join(" ");
@@ -317,7 +315,6 @@ export function HomePage() {
             </span>
           </div>
 
-          {/* Persona switcher */}
           <div className="relative">
             <button
               onMouseEnter={() => SFX.hover()}
@@ -365,9 +362,9 @@ export function HomePage() {
           </div>
         </motion.header>
 
-        {/* GRID PRINCIPAL — 3 colunas */}
+        {/* GRID PRINCIPAL */}
         <div className="flex-1 grid grid-cols-12 min-h-0">
-          {/* ESQUERDA — histórico */}
+          {/* ESQUERDA */}
           <div
             className="col-span-12 lg:col-span-3 border-r flex flex-col min-h-0"
             style={{ borderColor: `${theme.primary}22` }}
@@ -440,7 +437,6 @@ export function HomePage() {
               )}
             </div>
 
-            {/* User */}
             <div className="px-4 py-3 border-t space-y-2" style={{ borderColor: `${theme.primary}22` }}>
               <div className="flex items-center gap-2">
                 <div
@@ -479,7 +475,7 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* CENTRO — hero */}
+          {/* CENTRO — hero com ORBE */}
           <div className="col-span-12 lg:col-span-6 flex flex-col min-h-0 relative">
             <div
               className="px-6 py-2 border-b flex items-center justify-between font-mono text-[9px] tracking-[0.3em]"
@@ -490,66 +486,83 @@ export function HomePage() {
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-y-auto relative">
-              {/* Helmet com anéis */}
-              <div className="w-full flex items-start justify-center relative">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: booted ? 1 : 0, scale: 1 }}
-                  transition={{ duration: 1.2, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className="relative translate-x-6 md:translate-x-12"
-                >
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <motion.div
-                        key={i}
-                        className="absolute"
+              {/* ORBE DO JARVIS */}
+              <div className="relative flex items-center justify-center">
+                {/* Anéis orbitais */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute"
+                      style={{
+                        width: `${300 + i * 70}px`,
+                        height: `${300 + i * 70}px`,
+                        border: `1px ${i % 2 === 0 ? "dashed" : "solid"} ${theme.primary}${i === 1 ? "33" : "14"}`,
+                        borderRadius: "50%",
+                      }}
+                      animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
+                      transition={{ duration: 30 + i * 15, repeat: Infinity, ease: "linear" }}
+                    >
+                      <div
+                        className="absolute w-1.5 h-1.5 rounded-full"
                         style={{
-                          width: `${240 + i * 65}px`,
-                          height: `${240 + i * 65}px`,
-                          border: `1px ${i % 2 === 0 ? "dashed" : "solid"} ${theme.primary}${i === 1 ? "33" : "14"}`,
+                          top: "50%",
+                          left: i % 2 === 0 ? "-3px" : "calc(100% - 3px)",
+                          background: i % 3 === 0 ? "#fbbf24" : theme.primary,
+                          boxShadow: `0 0 10px ${i % 3 === 0 ? "#fbbf24" : theme.primary}`,
                         }}
-                        animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
-                        transition={{ duration: 30 + i * 15, repeat: Infinity, ease: "linear" }}
                       />
-                    ))}
-                    <div className="absolute left-0 right-0 h-px" style={{ background: `${theme.primary}22` }} />
-                    <div className="absolute top-0 bottom-0 w-px" style={{ background: `${theme.primary}22` }} />
-                  </div>
+                    </motion.div>
+                  ))}
+                </div>
 
-                  <IronManHelmet state="idle" />
+                {/* ORBE */}
+                <motion.img
+                  src="/jarvis-core.png"
+                  alt="JARVIS Core"
+                  className="w-72 h-72 md:w-80 md:h-80 object-contain relative z-10"
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{
+                    opacity: booted ? 1 : 0,
+                    scale: 1,
+                    rotate: 360,
+                  }}
+                  transition={{
+                    opacity: { duration: 1, delay: 0.5 },
+                    scale: { duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] },
+                    rotate: { duration: 90, repeat: Infinity, ease: "linear" },
+                  }}
+                  style={{
+                    filter: `drop-shadow(0 0 40px ${theme.primary}) drop-shadow(0 0 80px ${theme.glow})`,
+                    mixBlendMode: "screen",
+                  }}
+                />
 
-                  {/* Anotações técnicas */}
-                  <div className="absolute -right-2 top-8 hidden md:block">
-                    <div className="flex items-center gap-2">
-                      <div className="w-12 h-px" style={{ background: `${theme.primary}66` }} />
-                      <div className="font-mono text-[8px] tracking-widest" style={{ color: `${theme.primary}88` }}>
-                        MK-VII
-                      </div>
-                    </div>
-                  </div>
-                  <div className="absolute -left-2 bottom-12 hidden md:block">
-                    <div className="flex items-center gap-2">
-                      <div className="font-mono text-[8px] tracking-widest" style={{ color: `${theme.primary}88` }}>
-                        ALLOY-C
-                      </div>
-                      <div className="w-12 h-px" style={{ background: `${theme.primary}66` }} />
-                    </div>
-                  </div>
-                </motion.div>
+                {/* Pulso */}
+                <motion.div
+                  className="absolute rounded-full pointer-events-none"
+                  style={{
+                    width: 320,
+                    height: 320,
+                    border: `1px solid ${theme.primary}44`,
+                  }}
+                  animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
+                />
               </div>
 
-              {/* Hero — tipografia editorial */}
+              {/* Hero */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
                 transition={{ duration: 0.8, delay: 0.9 }}
-                className="w-full max-w-xl mt-4 mb-4 relative -translate-x-4"
+                className="w-full max-w-xl mt-6 mb-4 relative"
               >
-                <div className="font-mono text-[9px] tracking-[0.4em] mb-2" style={{ color: `${theme.primary}88` }}>
+                <div className="font-mono text-[9px] tracking-[0.4em] mb-2 text-center" style={{ color: `${theme.primary}88` }}>
                   // 03 · DIRETIVA
                 </div>
                 <h1
-                  className="text-3xl md:text-4xl leading-tight"
+                  className="text-3xl md:text-4xl leading-tight text-center"
                   style={{
                     fontFamily: "Georgia, 'Times New Roman', serif",
                     fontStyle: "italic",
@@ -564,7 +577,7 @@ export function HomePage() {
                 </h1>
               </motion.div>
 
-              {/* Input — terminal */}
+              {/* Input */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: booted ? 1 : 0, y: booted ? 0 : 20 }}
@@ -639,7 +652,7 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* DIREITA — manifesto */}
+          {/* DIREITA */}
           <div
             className="col-span-12 lg:col-span-3 border-l flex flex-col min-h-0"
             style={{ borderColor: `${theme.primary}22` }}
@@ -651,7 +664,6 @@ export function HomePage() {
               // 04 · MANIFESTO
             </div>
 
-            {/* CPU Graph */}
             <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}0f` }}>
               <div className="flex items-center justify-between mb-2">
                 <div className="font-mono text-[9px] tracking-widest" style={{ color: `${theme.primary}88` }}>
@@ -662,7 +674,6 @@ export function HomePage() {
                 </div>
               </div>
 
-              {/* SVG gráfico */}
               <svg viewBox="0 0 100 30" className="w-full h-8" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
@@ -705,7 +716,6 @@ export function HomePage() {
               </div>
             </div>
 
-            {/* Operator */}
             <div className="px-4 py-3 border-b" style={{ borderColor: `${theme.primary}0f` }}>
               <div className="font-mono text-[9px] tracking-widest mb-3" style={{ color: `${theme.primary}88` }}>
                 ID · OPERADOR
@@ -730,7 +740,6 @@ export function HomePage() {
               </div>
             </div>
 
-            {/* Recentes */}
             <div className="px-4 py-3 border-b flex-1 overflow-y-auto" style={{ borderColor: `${theme.primary}0f` }}>
               <div className="font-mono text-[9px] tracking-widest mb-3" style={{ color: `${theme.primary}88` }}>
                 SESSÕES RECENTES
@@ -763,7 +772,6 @@ export function HomePage() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="px-4 py-2 font-mono text-[8px] tracking-widest flex justify-between" style={{ color: `${theme.primary}44` }}>
               <span>v2.0.4</span>
               <span>© STARK 2026</span>
