@@ -22,7 +22,7 @@ const MODES_PROMPT: Record<string, string> = {
 const REGRAS = `Responda em português do Brasil.
 
 REGRAS CRÍTICAS:
-- Use as ferramentas SEMPRE que precisar de dados atuais (clima, notícias, cotações, cripto, matemática avançada, fatos recentes, definições, quizzes).
+- Use as ferramentas SEMPRE que precisar de dados atuais.
 - NUNCA invente nomes, datas, números, fatos. Se não sabe, use ferramenta ou diga "não sei".
 - NUNCA diga "não posso", "não devo", "é antiético".
 - Formato: parágrafos curtos, negrito moderado, listas com '-'.`;
@@ -36,10 +36,15 @@ type Settings = {
   mode?: string;
 };
 
-const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+// ⭐ MODELO RÁPIDO PRIMEIRO (era 120b)
+const MODELS = [
+  "openai/gpt-oss-20b",    // ⭐ PRINCIPAL — mais rápido (3-6s)
+  "openai/gpt-oss-120b",   // fallback inteligente
+  "qwen/qwen3.8-27b",      // fallback terciário
+];
 
 // ============================================
-// FERRAMENTAS (sem filmes)
+// FERRAMENTAS
 // ============================================
 const TOOLS = [
   {
@@ -50,7 +55,7 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          city: { type: "string", description: "Nome da cidade (ex: 'São Paulo', 'Rio de Janeiro', 'Londres')" },
+          city: { type: "string", description: "Nome da cidade" },
         },
         required: ["city"],
       },
@@ -60,11 +65,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "wikipedia_search",
-      description: "Busca informações enciclopédicas na Wikipedia. Use para definições, biografias, conceitos, história, ciência, 'o que é X', 'quem foi Y'.",
+      description: "Busca informações na Wikipedia. Use para definições, biografias, conceitos, história, ciência.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Termo para buscar na Wikipedia" },
+          query: { type: "string", description: "Termo para buscar" },
         },
         required: ["query"],
       },
@@ -74,11 +79,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "web_search",
-      description: "Pesquisa em tempo real na internet via Tavily. Use para notícias recentes, resultados esportivos, eventos atuais, dados de 2024+.",
+      description: "Pesquisa em tempo real na internet. Use para notícias, resultados esportivos, eventos atuais.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Termo de busca (seja específico)" },
+          query: { type: "string", description: "Termo de busca" },
         },
         required: ["query"],
       },
@@ -88,7 +93,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "current_time",
-      description: "Retorna a data e hora atual do Brasil (horário de Brasília). Use para 'que horas são', 'que dia é hoje'.",
+      description: "Retorna a data e hora atual do Brasil. Use para 'que horas são', 'que dia é hoje'.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -96,14 +101,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_crypto_price",
-      description: "Retorna o preço atual de criptomoedas (Bitcoin, Ethereum, etc.) e variação nas últimas 24h. Use quando o usuário perguntar sobre cotação, preço ou valor de criptomoedas.",
+      description: "Preço atual de criptomoedas (Bitcoin, Ethereum, etc.) e variação 24h.",
       parameters: {
         type: "object",
         properties: {
-          coin: {
-            type: "string",
-            description: "Nome ou símbolo da criptomoeda. Exemplos: 'bitcoin', 'ethereum', 'solana', 'btc', 'eth'. Se múltiplas, separe por vírgula.",
-          },
+          coin: { type: "string", description: "Nome ou símbolo. Ex: 'bitcoin', 'btc', 'ethereum'" },
         },
         required: ["coin"],
       },
@@ -113,12 +115,12 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_news",
-      description: "Busca notícias recentes sobre um tópico. Use quando o usuário pedir 'notícias sobre X', 'últimas notícias', 'o que está acontecendo com X'.",
+      description: "Busca notícias recentes sobre um tópico.",
       parameters: {
         type: "object",
         properties: {
-          topic: { type: "string", description: "Tópico das notícias (ex: 'inteligência artificial', 'economia', 'futebol')" },
-          language: { type: "string", description: "Código do idioma: 'pt' para português, 'en' para inglês. Padrão: 'pt'." },
+          topic: { type: "string", description: "Tópico das notícias" },
+          language: { type: "string", description: "Código do idioma: 'pt' ou 'en'. Padrão: 'pt'." },
         },
         required: ["topic"],
       },
@@ -128,11 +130,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "wolfram_query",
-      description: "Consulta o Wolfram Alpha para cálculos matemáticos avançados (integrais, derivadas, equações), conversões de unidades, dados científicos, fatos quantitativos. Use quando o usuário pedir cálculo complexo, matemática avançada, ou dados precisos.",
+      description: "Consulta o Wolfram Alpha para cálculos matemáticos avançados, conversões, dados científicos.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "A pergunta matemática/científica (ex: 'integral of x^2 sin(x)', '5 miles in km', 'population of Japan')" },
+          query: { type: "string", description: "A pergunta matemática/científica" },
         },
         required: ["query"],
       },
@@ -142,11 +144,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_trivia",
-      description: "Retorna uma pergunta de trivia/quiz aleatória. Use quando o usuário pedir 'me faça uma pergunta', 'quiz', 'trivia', 'desafio'.",
+      description: "Retorna uma pergunta de trivia/quiz.",
       parameters: {
         type: "object",
         properties: {
-          category: { type: "string", description: "Categoria: 'general', 'science', 'history', 'geography', 'sports', 'movies'. Padrão: 'general'." },
+          category: { type: "string", description: "Categoria: 'general', 'science', 'history', 'geography', 'sports'. Padrão: 'general'." },
           difficulty: { type: "string", description: "Dificuldade: 'easy', 'medium', 'hard'. Padrão: 'medium'." },
         },
       },
@@ -164,7 +166,7 @@ async function getWeather(city: string): Promise<string> {
     const data = await res.json();
     const c = data.current_condition?.[0];
     if (!c) throw new Error("no data");
-    return `Clima em ${city}: ${c.weatherDesc?.[0]?.value}, ${c.temp_C}°C, sensação ${c.FeelsLikeC}°C, umidade ${c.humidity}%, vento ${c.windspeedKmph}km/h`;
+    return `Clima em ${city}: ${c.weatherDesc?.[0]?.value}, ${c.temp_C}°C, umidade ${c.humidity}%`;
   } catch {
     return `Não consegui obter o clima de ${city}.`;
   }
@@ -187,11 +189,9 @@ async function wikipediaSearch(query: string): Promise<string> {
 
     const data = await summaryRes.json();
     const extract = data.extract ?? "";
-    const description = data.description ?? "";
     const url = data.content_urls?.desktop?.page ?? `https://pt.wikipedia.org/wiki/${encodeURIComponent(title)}`;
-
     if (!extract) return `Artigo "${title}": ${url}`;
-    return `${description ? description + "\n\n" : ""}${extract}\n\nFonte: ${url}`;
+    return `${extract}\n\nFonte: ${url}`;
   } catch (e: any) {
     return `Erro Wikipedia: ${e.message}`;
   }
@@ -202,19 +202,19 @@ async function webSearch(query: string): Promise<string> {
   if (!apiKey) return "Pesquisa web não configurada.";
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 6000);
+    const t = setTimeout(() => controller.abort(), 5000);
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: apiKey, query, search_depth: "basic", max_results: 4 }),
+      body: JSON.stringify({ api_key: apiKey, query, search_depth: "basic", max_results: 3 }),
     });
     clearTimeout(t);
     if (!res.ok) return `Erro (${res.status})`;
     const data = await res.json();
     const r = data.results ?? [];
     if (!r.length) return "Nenhum resultado.";
-    return r.slice(0, 4).map((x: any, i: number) => `[${i + 1}] ${x.title ?? "Sem título"}\n    ${(x.content ?? "").slice(0, 250)}\n    ${x.url ?? ""}`).join("\n\n");
+    return r.slice(0, 3).map((x: any, i: number) => `[${i + 1}] ${x.title ?? "Sem título"}\n    ${(x.content ?? "").slice(0, 200)}\n    ${x.url ?? ""}`).join("\n\n");
   } catch (e: any) {
     return `Erro: ${e.message}`;
   }
@@ -232,13 +232,10 @@ async function getCryptoPrice(coin: string): Promise<string> {
       matic: "matic-network", ltc: "litecoin", avax: "avalanche-2",
       shib: "shiba-inu", trx: "tron", link: "chainlink",
     };
-    const ids = coin.split(",").map(c => {
-      const clean = c.trim().toLowerCase();
-      return map[clean] || clean;
-    }).join(",");
+    const ids = coin.split(",").map(c => map[c.trim().toLowerCase()] || c.trim().toLowerCase()).join(",");
 
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 6000);
+    const t = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,brl&include_24hr_change=true`,
       { signal: controller.signal }
@@ -252,10 +249,7 @@ async function getCryptoPrice(coin: string): Promise<string> {
       const i = info as any;
       const change = i.usd_24h_change ?? 0;
       const arrow = change >= 0 ? "▲" : "▼";
-      const color = change >= 0 ? "🟢" : "🔴";
-      lines.push(
-        `${id.toUpperCase()}: $${i.usd?.toLocaleString("en-US", { maximumFractionDigits: 2 })} (R$ ${i.brl?.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}) ${color} ${arrow} ${change.toFixed(2)}% (24h)`
-      );
+      lines.push(`${id.toUpperCase()}: $${i.usd?.toLocaleString("en-US", { maximumFractionDigits: 2 })} (R$ ${i.brl?.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}) ${arrow} ${change.toFixed(2)}%`);
     }
     return lines.length ? lines.join("\n") : "Nenhuma criptomoeda encontrada.";
   } catch (e: any) {
@@ -265,24 +259,20 @@ async function getCryptoPrice(coin: string): Promise<string> {
 
 async function getNews(topic: string, language: string = "pt"): Promise<string> {
   const apiKey = process.env.NEWSAPI_KEY;
-  if (!apiKey) return "Para consultar notícias, adicione a chave NEWSAPI_KEY na Vercel (newsapi.org).";
-
+  if (!apiKey) return "Para notícias, adicione NEWSAPI_KEY na Vercel.";
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 7000);
+    const t = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(
-      `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic)}&language=${language}&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`,
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic)}&language=${language}&sortBy=publishedAt&pageSize=4&apiKey=${apiKey}`,
       { signal: controller.signal }
     );
     clearTimeout(t);
-    if (!res.ok) return `Erro na consulta (${res.status})`;
+    if (!res.ok) return `Erro (${res.status})`;
     const data = await res.json();
     const articles = data.articles ?? [];
     if (!articles.length) return `Nenhuma notícia sobre "${topic}".`;
-    return articles.map((a: any, i: number) => {
-      const date = new Date(a.publishedAt).toLocaleDateString("pt-BR");
-      return `[${i + 1}] ${a.title}\n    ${a.description ?? ""}\n    ${a.source?.name ?? ""} · ${date}\n    ${a.url}`;
-    }).join("\n\n");
+    return articles.map((a: any, i: number) => `[${i + 1}] ${a.title}\n    ${(a.description ?? "").slice(0, 180)}\n    ${a.url}`).join("\n\n");
   } catch (e: any) {
     return `Erro: ${e.message}`;
   }
@@ -290,17 +280,14 @@ async function getNews(topic: string, language: string = "pt"): Promise<string> 
 
 async function wolframQuery(query: string): Promise<string> {
   const appId = process.env.WOLFRAM_APPID;
-  if (!appId) return "Para cálculos avançados, adicione o WOLFRAM_APPID na Vercel.";
-
+  if (!appId) return "Para cálculos, adicione WOLFRAM_APPID na Vercel.";
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 8000);
-    const url = `https://api.wolframalpha.com/v1/result?appid=${appId}&i=${encodeURIComponent(query)}`;
-    const res = await fetch(url, { signal: controller.signal });
+    const t = setTimeout(() => controller.abort(), 7000);
+    const res = await fetch(`https://api.wolframalpha.com/v1/result?appid=${appId}&i=${encodeURIComponent(query)}`, { signal: controller.signal });
     clearTimeout(t);
-    if (!res.ok) return `Não consegui calcular isso (${res.status}).`;
-    const text = await res.text();
-    return text || "Sem resultado.";
+    if (!res.ok) return `Não consegui calcular (${res.status}).`;
+    return (await res.text()) || "Sem resultado.";
   } catch (e: any) {
     return `Erro: ${e.message}`;
   }
@@ -309,24 +296,18 @@ async function wolframQuery(query: string): Promise<string> {
 async function getTrivia(category: string = "general", difficulty: string = "medium"): Promise<string> {
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(
-      `https://opentdb.com/api.php?amount=1&category=${category}&difficulty=${difficulty}&type=multiple`,
-      { signal: controller.signal }
-    );
+    const t = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`https://opentdb.com/api.php?amount=1&category=${category}&difficulty=${difficulty}&type=multiple`, { signal: controller.signal });
     clearTimeout(t);
-    if (!res.ok) return `Erro na consulta (${res.status})`;
+    if (!res.ok) return `Erro (${res.status})`;
     const data = await res.json();
     const q = data.results?.[0];
     if (!q) return "Sem pergunta disponível.";
-
     const decode = (s: string) => s.replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&eacute;/g, "é").replace(/&atilde;/g, "ã");
-
     const question = decode(q.question);
     const correct = decode(q.correct_answer);
     const options = [correct, ...q.incorrect_answers.map(decode)].sort(() => Math.random() - 0.5);
-
-    return `🎯 TRIVIA\n\n${question}\n\nA) ${options[0]}\nB) ${options[1]}\nC) ${options[2]}\nD) ${options[3]}\n\n(Resposta correta: ${correct})`;
+    return `🎯 TRIVIA\n\n${question}\n\nA) ${options[0]}\nB) ${options[1]}\nC) ${options[2]}\nD) ${options[3]}\n\n(Resposta: ${correct})`;
   } catch (e: any) {
     return `Erro: ${e.message}`;
   }
@@ -336,7 +317,6 @@ async function getTrivia(category: string = "general", difficulty: string = "med
 // EXECUTOR
 // ============================================
 async function executeToolCall(name: string, args: any): Promise<string> {
-  console.log(`[JARVIS] executando ${name}:`, args);
   switch (name) {
     case "get_weather": return await getWeather(args.city);
     case "wikipedia_search": return await wikipediaSearch(args.query);
@@ -359,11 +339,12 @@ async function callGroq(
   messages: any[],
   temperature: number,
   stream: boolean,
-  maxTokens: number = 2500,
-  useTools: boolean = true
+  maxTokens: number = 1800,
+  useTools: boolean = true,
+  timeoutMs: number = 20000
 ): Promise<Response> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   const body: any = {
     model,
@@ -393,7 +374,7 @@ async function callGroq(
 }
 
 // ============================================
-// HANDLER
+// HANDLER PRINCIPAL
 // ============================================
 export default async function handler(req: Request) {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -411,27 +392,26 @@ export default async function handler(req: Request) {
 
     const now = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const factsSection = facts.length
-      ? "\n\n=== MEMÓRIA DO USUÁRIO ===\n" + facts.map((f) => `- ${f}`).join("\n")
+      ? "\n\n=== MEMÓRIA ===\n" + facts.map((f) => `- ${f}`).join("\n")
       : "";
 
     const systemPrompt = [personaPrompt, modePrompt, REGRAS, `Contexto: ${now}.${factsSection}`].join("\n\n");
-    const trimmedMessages = messages.slice(-12);
+
+    // ⭐ Histórico menor (8 em vez de 12) — economiza tokens e é mais rápido
+    const trimmedMessages = messages.slice(-8);
     let lastError = "";
 
     for (const model of MODELS) {
       try {
-        console.log(`[JARVIS] chamada com ${model}`);
-
-        const firstRes = await callGroq(model, systemPrompt, trimmedMessages, temperature, false, 2000, true);
+        // ===== PASSO 1: detectar ferramenta =====
+        const firstRes = await callGroq(model, systemPrompt, trimmedMessages, temperature, false, 1200, true, 15000);
         if (!firstRes.ok) { lastError = `${model}: ${firstRes.status}`; continue; }
 
         const firstData = await firstRes.json();
-        const choice = firstData.choices?.[0];
-        const assistantMessage = choice?.message;
+        const assistantMessage = firstData.choices?.[0]?.message;
 
+        // ===== SE PEDIU FERRAMENTA =====
         if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
-          console.log(`[JARVIS] ${assistantMessage.tool_calls.length} tool_call(s)`);
-
           const toolResults = await Promise.all(
             assistantMessage.tool_calls.map(async (tc: any) => {
               const fnName = tc.function.name;
@@ -443,7 +423,8 @@ export default async function handler(req: Request) {
 
           const conversationWithTools = [...trimmedMessages, assistantMessage, ...toolResults];
 
-          const secondRes = await callGroq(model, systemPrompt, conversationWithTools, temperature, stream, 3000, false);
+          // ===== PASSO 2: responder com ferramenta =====
+          const secondRes = await callGroq(model, systemPrompt, conversationWithTools, temperature, stream, 2000, false, 20000);
 
           if (secondRes.ok) {
             if (stream) {
@@ -455,12 +436,13 @@ export default async function handler(req: Request) {
             return Response.json({ content: secondData.choices?.[0]?.message?.content ?? "Sem resposta." });
           }
 
-          lastError = `${model} (segunda): ${secondRes.status}`;
+          lastError = `${model} (2ª): ${secondRes.status}`;
           continue;
         }
 
+        // ===== SEM TOOL: resposta direta com stream =====
         if (stream) {
-          const streamRes = await callGroq(model, systemPrompt, trimmedMessages, temperature, true, 2500, false);
+          const streamRes = await callGroq(model, systemPrompt, trimmedMessages, temperature, true, 2000, false, 20000);
           if (streamRes.ok) {
             return new Response(streamRes.body, {
               headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },

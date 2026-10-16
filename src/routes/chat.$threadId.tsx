@@ -88,8 +88,8 @@ export function ChatPage() {
     const p = loadPersona();
     setPersona(p);
     applyTheme(p);
-    const m = loadMode();
-    setMode(m);
+    const m = loadMode() || "fast";
+setMode(m);
   }, []);
 
   useEffect(() => {
